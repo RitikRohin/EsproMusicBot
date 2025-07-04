@@ -7,7 +7,6 @@ RUN apt-get update \
 
 COPY . /app/
 WORKDIR /app/
-RUN pip install git+https://github.com/callsmusic/pytgcalls.git@patched
 RUN pip3 install --no-cache-dir -U -r requirements.txt
 
 CMD bash start
