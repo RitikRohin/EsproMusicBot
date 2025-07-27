@@ -1,8 +1,8 @@
 {
-    "name": "𝐄𝗌ρ𝗋ⱺ 𝐌ᥙsiᥴ [ ɴᴏ ᴀᴅʂ ] 🕊",
-    "description": "A Telegram Music Player Bot, written in Python with Pyrogram and Py-Tgcalls.",
-    "logo": "https://te.legra.ph/file/b8a0c1a00db3e57522b53.jpg",
-    "keywords": [
+  "name": "𝐄𝗌ρ𝗋ⱺ 𝐌ᥙsiᥴ [ ɴᴏ ᴀᴅꜱ ] 🕊",
+  "description": "A Telegram Music Player Bot, written in Python with Pyrogram and Py-Tgcalls.",
+  "logo": "https://te.legra.ph/file/b8a0c1a00db3e57522b53.jpg",
+  "keywords": [
     "python3",
     "telegram",
     "bot",
@@ -10,64 +10,44 @@
     "MusicBot",
     "telegram-bot",
     "pyrogram"
-    ],
-    "env": {
-      "API_ID": {
-        "description": "Get this value from https://my.telegram.org",
-        "value": "",
-        "required": true
-      },
-      "API_HASH": {
-        "description": "Get this value from https://my.telegram.org",
-        "value": "",
-        "required": true
-      },
-      "BOT_TOKEN": {
-        "description": "A Bot's token from Botfather",
-        "value": "",
-        "required": true
-      },
-      "MONGO_DB_URI": {
-        "description": "Get a mongodb url from https://cloud.mongodb.com.",
-        "value": "",
-        "required": true
-      },
-      "OWNER_ID": {
-        "description": "The user id of user whom you would like to add as OWNER.",
-        "value": "",
-        "required": true
-      },
-      "STRING_SESSION": {
-        "description": "A Pyrogram v2 String Session from @EsproStringBot on Telegram.",
-        "value": "",
-        "required": true
-      },
-      "SUPPORT_CHANNEL": {
-        "description": "CHANNEL",
-        "value": "",
-        "required": true
-      },
-      "SUPPORT_CHAT": {
-        "description": "GROUP",
-        "value": "",
-        "required": true
-      },
-      "LOGGER_ID": {
-        "description": "Private Group Bana Kar Uska Id Dalo",
-        "value": "",
-        "required": true
-      }
+  ],
+  "env": {
+    "API_ID": {
+      "description": "Get this value from https://my.telegram.org",
+      "required": true
     },
-    "buildpacks": [
-          {
-              "url": "heroku/python"
-          },
-          {
-              "url": "heroku/nodejs"
-          },
-          {
-              "url": "https://github.com/jonathanong/heroku-buildpack-ffmpeg-latest.git"
-          }
-      ],
-      "stack": "container"
-  }
+    "API_HASH": {
+      "description": "Get this value from https://my.telegram.org",
+      "required": true
+    },
+    "BOT_TOKEN": {
+      "description": "A Bot's token from Botfather",
+      "required": true
+    },
+    "MONGO_DB_URI": {
+      "description": "Get a MongoDB URI from https://cloud.mongodb.com.",
+      "required": true
+    },
+    "OWNER_ID": {
+      "description": "Your Telegram user ID",
+      "required": true
+    },
+    "STRING_SESSION": {
+      "description": "Generate via @EsproStringBot on Telegram.",
+      "required": true
+    },
+    "SUPPORT_CHANNEL": {
+      "description": "Your Telegram channel username or link",
+      "required": true
+    },
+    "SUPPORT_CHAT": {
+      "description": "Your Telegram group username or link",
+      "required": true
+    },
+    "LOGGER_ID": {
+      "description": "Private log group ID",
+      "required": true
+    }
+  },
+  "stack": "container"
+}
