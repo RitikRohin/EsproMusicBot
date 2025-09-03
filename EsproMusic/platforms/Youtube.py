@@ -2,35 +2,65 @@ import asyncio
 import os
 import re
 import json
+import glob
+import random
+import logging
 from typing import Union
 
 import yt_dlp
 from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message
 from youtubesearchpython.__future__ import VideosSearch
+from pyrogram import Client
 
 from EsproMusic.utils.database import is_on_off
 from EsproMusic.utils.formatters import time_to_seconds
 
+# --- यहाँ अपनी जानकारी डालें ---
 
+# Pyrogram API ID और API HASH
+# Pyrogram.org से प्राप्त करें
+API_ID = 12380656 
+API_HASH = "d927c13beaaf5110f25c505b7c071273"
 
-import os
-import glob
-import random
-import logging
+# Telegram चैनल की ID
+# चैनल में किसी भी मैसेज को फॉरवर्ड करके पाएं
+# यह एक नेगेटिव नंबर होगा, जैसे: -100123456789
+TELEGRAM_CHANNEL_ID = -1002945056537 
+
+# --- यहाँ जानकारी डालना समाप्त करें ---
+
+# --- कैशिंग के लिए JSON फ़ाइल ---
+
+CACHE_FILE = "cache_data.json"
+
+def get_cache_data():
+    """Reads the cache data from the JSON file."""
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE, "r") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return {}
+    return {}
+
+def save_cache_data(data):
+    """Saves the cache data to the JSON file."""
+    with open(CACHE_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+# --- मूल कोड फ़ंक्शंस ---
 
 def cookie_txt_file():
     folder_path = f"{os.getcwd()}/cookies"
-    filename = f"{os.getcwd()}/cookies/logs.csv"
     txt_files = glob.glob(os.path.join(folder_path, '*.txt'))
     if not txt_files:
         raise FileNotFoundError("No .txt files found in the specified folder.")
     cookie_txt_file = random.choice(txt_files)
+    filename = f"{os.getcwd()}/cookies/logs.csv"
     with open(filename, 'a') as file:
         file.write(f'Choosen File : {cookie_txt_file}\n')
     return f"""cookies/{str(cookie_txt_file).split("/")[-1]}"""
-
-
 
 async def check_file_size(link):
     async def get_format_info(link):
@@ -81,7 +111,6 @@ async def shell_cmd(cmd):
             return errorz.decode("utf-8")
     return out.decode("utf-8")
 
-
 class YouTubeAPI:
     def __init__(self):
         self.base = "https://www.youtube.com/watch?v="
@@ -121,6 +150,53 @@ class YouTubeAPI:
         if offset in (None,):
             return None
         return text[offset : offset + length]
+
+    async def search(self, query: str, limit: int = 10) -> list:
+        results = VideosSearch(query, limit=limit)
+        search_results = []
+        for result in (await results.next())["result"]:
+            search_results.append({
+                "title": result["title"],
+                "duration_min": result["duration"],
+                "thumbnail": result["thumbnails"][0]["url"].split("?")[0],
+                "vidid": result["id"],
+                "link": result["link"]
+            })
+        return search_results
+
+    async def upload_to_channel(self, client, chat_id, file_path, yt_id, title):
+        try:
+            if file_path.endswith((".mp3", ".ogg")):
+                msg = await client.send_audio(chat_id, file_path, caption=f"**{title}**\n\n**YouTube ID:** `{yt_id}`")
+            elif file_path.endswith((".mp4", ".mkv")):
+                msg = await client.send_video(chat_id, file_path, caption=f"**{title}**\n\n**YouTube ID:** `{yt_id}`")
+            
+            cache_data = get_cache_data()
+            cache_data[yt_id] = msg.id
+            save_cache_data(cache_data)
+            
+            print(f"File uploaded to channel and cached: {yt_id}")
+            return True
+        except Exception as e:
+            print(f"Error uploading to channel: {e}")
+            return False
+            
+    async def find_and_download_from_channel(self, client, chat_id, yt_id, title):
+        cache_data = get_cache_data()
+        if yt_id in cache_data:
+            tg_msg_id = cache_data[yt_id]
+            try:
+                msg = await client.get_messages(chat_id, tg_msg_id)
+                if msg:
+                    file_path = await client.download_media(msg, file_name=f"downloads/{title}")
+                    print(f"File found in channel and downloaded: {file_path}")
+                    return file_path
+            except Exception as e:
+                print(f"Error fetching file from channel: {e}")
+                del cache_data[yt_id]
+                save_cache_data(cache_data)
+                return None
+        return None
 
     async def details(self, link: str, videoid: Union[bool, str] = None):
         if videoid:
@@ -292,7 +368,20 @@ class YouTubeAPI:
         songvideo: Union[bool, str] = None,
         format_id: Union[bool, str] = None,
         title: Union[bool, str] = None,
+        client = None,
+        channel_id = None
     ) -> str:
+        
+        if videoid:
+            yt_id = videoid
+        else:
+            yt_id = (await self.details(link))[4]
+
+        if client and channel_id and yt_id:
+            downloaded_file = await self.find_and_download_from_channel(client, channel_id, yt_id, title)
+            if downloaded_file:
+                return downloaded_file, True
+
         if videoid:
             link = self.base + link
         loop = asyncio.get_running_loop()
@@ -374,11 +463,11 @@ class YouTubeAPI:
         if songvideo:
             await loop.run_in_executor(None, song_video_dl)
             fpath = f"downloads/{title}.mp4"
-            return fpath
+            direct = True
         elif songaudio:
             await loop.run_in_executor(None, song_audio_dl)
             fpath = f"downloads/{title}.mp3"
-            return fpath
+            direct = True
         elif video:
             if await is_on_off(1):
                 direct = True
@@ -412,4 +501,43 @@ class YouTubeAPI:
         else:
             direct = True
             downloaded_file = await loop.run_in_executor(None, audio_dl)
+        
+        if direct and downloaded_file and client and channel_id and yt_id:
+            await self.upload_to_channel(client, channel_id, downloaded_file, yt_id, title)
+
         return downloaded_file, direct
+
+# --- उपयोग का उदाहरण ---
+
+async def main():
+    async with Client("my_bot", api_id=API_ID, api_hash=API_HASH) as client:
+        yt_api = YouTubeAPI()
+        
+        # यहाँ वह लिंक डालें जिसे आप डाउनलोड करना चाहते हैं
+        link_to_download = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        title_of_song = "Never Gonna Give You Up"
+        
+        print("पहली बार डाउनलोड कर रहा हूँ...")
+        file_path, is_direct = await yt_api.download(
+            link=link_to_download,
+            mystic=None,
+            songaudio=True,
+            title=title_of_song,
+            client=client,
+            channel_id=TELEGRAM_CHANNEL_ID
+        )
+        print(f"डाउनलोड किया गया: {file_path}")
+
+        print("\nदूसरी बार डाउनलोड कर रहा हूँ...")
+        file_path_2, is_direct_2 = await yt_api.download(
+            link=link_to_download,
+            mystic=None,
+            songaudio=True,
+            title=title_of_song,
+            client=client,
+            channel_id=TELEGRAM_CHANNEL_ID
+        )
+        print(f"डाउनलोड किया गया: {file_path_2}")
+        
+if __name__ == "__main__":
+    asyncio.run(main())
