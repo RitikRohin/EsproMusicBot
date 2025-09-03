@@ -18,8 +18,8 @@ from EsproMusic import app
 
 # Pyrogram API ID और API HASH
 # Pyrogram.org से प्राप्त करें
-API_ID = 22633893 
-API_HASH = "9163087b2d151dc3d0bed1d55ce33ac1"
+API_ID = 12380656 
+API_HASH = "d927c13beaaf5110f25c505b7c071273"
 
 # Telegram चैनल की ID
 # चैनल में किसी भी मैसेज को फॉरवर्ड करके पाएं
