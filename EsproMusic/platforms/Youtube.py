@@ -13,13 +13,13 @@ from pyrogram.types import Message
 from youtubesearchpython.__future__ import VideosSearch
 from pyrogram import Client
 from EsproMusic import app
-from EsproMusic.utils.database import is_on_off
-from EsproMusic.utils.formatters import time_to_seconds
 
 # --- यहाँ अपनी जानकारी डालें ---
 
 # Pyrogram API ID और API HASH
 # Pyrogram.org से प्राप्त करें
+API_ID = 22633893 
+API_HASH = "9163087b2d151dc3d0bed1d55ce33ac1"
 
 # Telegram चैनल की ID
 # चैनल में किसी भी मैसेज को फॉरवर्ड करके पाएं
@@ -176,7 +176,8 @@ class YouTubeAPI:
             print(f"File uploaded to channel and cached: {yt_id}")
             return True
         except Exception as e:
-            print(f"Error uploading to channel: {e}")
+            # यह लाइन हमें असली एरर बताएगी!
+            print(f"Error uploading to channel: {e}") 
             return False
             
     async def find_and_download_from_channel(self, client, chat_id, yt_id, title):
@@ -500,6 +501,10 @@ class YouTubeAPI:
             direct = True
             downloaded_file = await loop.run_in_executor(None, audio_dl)
         
+        # यहाँ हमने प्रिंट स्टेटमेंट जोड़े हैं ताकि हम जान सकें कि क्या हो रहा है
+        print(f"File Path to Upload: {downloaded_file}")
+        print(f"Is Direct Upload? {direct}")
+        
         if direct and downloaded_file and client and channel_id and yt_id:
             await self.upload_to_channel(client, channel_id, downloaded_file, yt_id, title)
 
@@ -508,34 +513,38 @@ class YouTubeAPI:
 # --- उपयोग का उदाहरण ---
 
 async def main():
-    async with Client("my_bot", api_id=API_ID, api_hash=API_HASH) as client:
-        yt_api = YouTubeAPI()
-        
-        # यहाँ वह लिंक डालें जिसे आप डाउनलोड करना चाहते हैं
-        link_to_download = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-        title_of_song = "Never Gonna Give You Up"
-        
-        print("पहली बार डाउनलोड कर रहा हूँ...")
-        file_path, is_direct = await yt_api.download(
-            link=link_to_download,
-            mystic=None,
-            songaudio=True,
-            title=title_of_song,
-            client=client,
-            channel_id=TELEGRAM_CHANNEL_ID
-        )
-        print(f"डाउनलोड किया गया: {file_path}")
+    # यह 'app' वेरिएबल आपके 'EsproMusic' प्रोजेक्ट से आता है
+    # इसलिए यहाँ हम इसे सीधे `Client` के बजाय उपयोग कर सकते हैं।
+    # यह सुनिश्चित करें कि आपका 'EsproMusic' प्रोजेक्ट सही से कॉन्फ़िगर किया गया है।
+    client = app 
+    
+    yt_api = YouTubeAPI()
+    
+    # यहाँ वह लिंक डालें जिसे आप डाउनलोड करना चाहते हैं
+    link_to_download = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    title_of_song = "Never Gonna Give You Up"
+    
+    print("पहली बार डाउनलोड कर रहा हूँ...")
+    file_path, is_direct = await yt_api.download(
+        link=link_to_download,
+        mystic=None,
+        songaudio=True,
+        title=title_of_song,
+        client=client,
+        channel_id=TELEGRAM_CHANNEL_ID
+    )
+    print(f"डाउनलोड किया गया: {file_path}")
 
-        print("\nदूसरी बार डाउनलोड कर रहा हूँ...")
-        file_path_2, is_direct_2 = await yt_api.download(
-            link=link_to_download,
-            mystic=None,
-            songaudio=True,
-            title=title_of_song,
-            client=client,
-            channel_id=TELEGRAM_CHANNEL_ID
-        )
-        print(f"डाउनलोड किया गया: {file_path_2}")
-        
+    print("\nदूसरी बार डाउनलोड कर रहा हूँ...")
+    file_path_2, is_direct_2 = await yt_api.download(
+        link=link_to_download,
+        mystic=None,
+        songaudio=True,
+        title=title_of_song,
+        client=client,
+        channel_id=TELEGRAM_CHANNEL_ID
+    )
+    print(f"डाउनलोड किया गया: {file_path_2}")
+    
 if __name__ == "__main__":
     asyncio.run(main())
