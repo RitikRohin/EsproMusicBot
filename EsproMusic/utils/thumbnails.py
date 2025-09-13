@@ -52,10 +52,9 @@ def draw_text_with_shadow(background, draw, position, text, font, fill, shadow_o
 async def gen_thumb(videoid: str):
     """Generates a unique thumbnail for a given YouTube video ID."""
     try:
-        # Check for cached thumbnail
-        if os.path.isfile(f"cache/{videoid}_v5.png"):
+        if os.path.isfile(f"cache/{videoid}_v6.png"):
             logging.info(f"Using cached thumbnail for {videoid}")
-            return f"cache/{videoid}_v5.png"
+            return f"cache/{videoid}_v6.png"
 
         url = f"https://www.youtube.com/watch?v={videoid}"
         results = VideosSearch(url, limit=1)
@@ -67,7 +66,6 @@ async def gen_thumb(videoid: str):
         views = video_info.get("viewCount", {}).get("short", "Unknown Views")
         channel = video_info.get("channel", {}).get("name", "Unknown Channel")
 
-        # Download thumbnail
         if not thumbnail_url:
             logging.error("Thumbnail URL not found.")
             return None
@@ -83,7 +81,6 @@ async def gen_thumb(videoid: str):
                 async with aiofiles.open(download_path, mode="wb") as f:
                     await f.write(content)
                     
-        # Image Processing
         original_thumb = Image.open(download_path)
         original_thumb = changeImageSize(1280, 720, original_thumb)
         
@@ -95,26 +92,34 @@ async def gen_thumb(videoid: str):
         arial = ImageFont.truetype("EsproMusic/assets/font2.ttf", 30)
         title_font = ImageFont.truetype("EsproMusic/assets/font3.ttf", 35)
 
-        # Draw the main rounded-rectangle thumbnail
+        # Border ko alag se draw kiya gaya hai
+        border_width = 10
         thumb_width, thumb_height = 800, 450
-        thumb_x, thumb_y = (1280 - thumb_width) // 2, 60
+        border_x, border_y = (1280 - thumb_width) // 2 - border_width, 60 - border_width
+        border_width, border_height = thumb_width + 2*border_width, thumb_height + 2*border_width
+        
+        # Draw the main rounded-rectangle thumbnail with a border
         main_thumb_resized = original_thumb.resize((thumb_width, thumb_height))
 
-        mask = Image.new('L', main_thumb_resized.size, 0)
-        mask_draw = ImageDraw.Draw(mask)
-        mask_draw.rounded_rectangle([(0,0), (thumb_width, thumb_height)], radius=25, fill=255)
+        # First, paste the white border
+        mask_border = Image.new('L', background.size, 0)
+        draw_mask_border = ImageDraw.Draw(mask_border)
+        draw_mask_border.rounded_rectangle([(border_x, border_y), (border_x + border_width, border_y + border_height)], radius=25 + border_width, fill=255)
+        background.paste(Image.new("RGBA", background.size, "white"), (0,0), mask_border)
         
-        background.paste(main_thumb_resized, (thumb_x, thumb_y), mask)
+        # Then, paste the main image on top of the border
+        mask_thumb = Image.new('L', main_thumb_resized.size, 0)
+        draw_mask_thumb = ImageDraw.Draw(mask_thumb)
+        draw_mask_thumb.rounded_rectangle([(0,0), (thumb_width, thumb_height)], radius=25, fill=255)
+        background.paste(main_thumb_resized, ((1280 - thumb_width) // 2, 60), mask_thumb)
 
-        # Draw text and info below the thumbnail
-        text_y_position = thumb_y + thumb_height + 40
+        text_y_position = 60 + thumb_height + 40
         draw_text_with_shadow(background, draw, (300, text_y_position), title, title_font, (255, 255, 255))
         
         text_y_position += 50
         info_text = f"{channel} | {views}"
         draw_text_with_shadow(background, draw, (300, text_y_position), info_text, arial, (200, 200, 200))
 
-        # Gradient Progress Bar
         bar_y_position = text_y_position + 60
         bar_x_position = (1280 - 1000) // 2
         bar_length = 1000
@@ -141,7 +146,6 @@ async def gen_thumb(videoid: str):
         draw.ellipse([circle_x_position - circle_radius, bar_y_position - circle_radius,
                       circle_x_position + circle_radius, bar_y_position + circle_radius], fill=(255, 0, 255))
         
-        # Draw time stamps and play icons
         draw_text_with_shadow(background, draw, (bar_x_position, bar_y_position + 15), "00:00", arial, (255, 255, 255))
         draw_text_with_shadow(background, draw, (bar_x_position + bar_length - 70, bar_y_position + 15), duration, arial, (255, 255, 255))
 
@@ -152,7 +156,7 @@ async def gen_thumb(videoid: str):
         background.paste(play_icons, (icon_x_position, icon_y_position), play_icons)
         
         os.remove(download_path)
-        background_path = f"cache/{videoid}_v5.png"
+        background_path = f"cache/{videoid}_v6.png"
         background.save(background_path)
         
         return background_path
