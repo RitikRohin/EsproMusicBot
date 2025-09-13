@@ -42,9 +42,9 @@ def draw_text_with_shadow(background, draw, position, text, font, fill, shadow_o
 async def gen_thumb(videoid: str):
     """Generates a unique thumbnail for a given YouTube video ID."""
     try:
-        if os.path.isfile(f"cache/{videoid}_v8.png"):
+        if os.path.isfile(f"cache/{videoid}_v10.png"):
             logging.info(f"Using cached thumbnail for {videoid}")
-            return f"cache/{videoid}_v8.png"
+            return f"cache/{videoid}_v10.png"
 
         url = f"https://www.youtube.com/watch?v={videoid}"
         results = VideosSearch(url, limit=1)
@@ -82,7 +82,15 @@ async def gen_thumb(videoid: str):
         arial = ImageFont.truetype("EsproMusic/assets/font2.ttf", 30)
         title_font = ImageFont.truetype("EsproMusic/assets/font3.ttf", 35)
 
-        # Draw the main rounded-rectangle thumbnail with a full border
+        # Draw a white border on the background itself
+        background_border_width = 10
+        draw.rounded_rectangle([(background_border_width, background_border_width),
+                               (background.width - background_border_width, background.height - background_border_width)],
+                              radius=25,
+                              outline="white",
+                              width=background_border_width)
+
+        # Draw the main rounded-rectangle thumbnail with a full white border
         thumb_width, thumb_height = 800, 450
         border_width = 10
         border_radius = 25
@@ -90,10 +98,8 @@ async def gen_thumb(videoid: str):
         thumb_x, thumb_y = (1280 - thumb_width) // 2, 60
         border_x, border_y = thumb_x - border_width, thumb_y - border_width
         
-        # Draw the border first
         draw.rounded_rectangle([(border_x, border_y), (border_x + thumb_width + 2*border_width, border_y + thumb_height + 2*border_width)], radius=border_radius + border_width, fill="white")
         
-        # Then, paste the main thumbnail on top of the border
         main_thumb_resized = original_thumb.resize((thumb_width, thumb_height))
         mask_thumb = Image.new('L', main_thumb_resized.size, 0)
         draw_mask_thumb = ImageDraw.Draw(mask_thumb)
@@ -143,7 +149,7 @@ async def gen_thumb(videoid: str):
         background.paste(play_icons, (icon_x_position, icon_y_position), play_icons)
         
         os.remove(download_path)
-        background_path = f"cache/{videoid}_v8.png"
+        background_path = f"cache/{videoid}_v10.png"
         background.save(background_path)
         
         return background_path
