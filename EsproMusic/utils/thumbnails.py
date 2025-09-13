@@ -30,6 +30,17 @@ def random_color():
     """Generates a random RGB color tuple."""
     return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
+def get_dominant_color(image):
+    """Extracts a dominant color from the image for color coordination."""
+    img = image.copy()
+    img.thumbnail((100, 100)) # Resizing for faster processing
+    img = img.convert("P", palette=Image.Palette.WEB, colors=1)
+    
+    # Get the color and convert to RGB
+    palette = img.getpalette()
+    return (palette[0], palette[1], palette[2])
+
+
 def draw_text_with_shadow(background, draw, position, text, font, fill, shadow_offset=(3, 3), shadow_blur=5):
     """Draws text with a shadow for better visibility."""
     shadow = Image.new('RGBA', background.size, (0, 0, 0, 0))
@@ -42,9 +53,9 @@ def draw_text_with_shadow(background, draw, position, text, font, fill, shadow_o
 async def gen_thumb(videoid: str):
     """Generates a unique thumbnail for a given YouTube video ID."""
     try:
-        if os.path.isfile(f"cache/{videoid}_v10.png"):
+        if os.path.isfile(f"cache/{videoid}_v11.png"):
             logging.info(f"Using cached thumbnail for {videoid}")
-            return f"cache/{videoid}_v10.png"
+            return f"cache/{videoid}_v11.png"
 
         url = f"https://www.youtube.com/watch?v={videoid}"
         results = VideosSearch(url, limit=1)
@@ -74,6 +85,9 @@ async def gen_thumb(videoid: str):
         original_thumb = Image.open(download_path)
         original_thumb = changeImageSize(1280, 720, original_thumb)
         
+        # Get dominant color for color coordination
+        dominant_color = get_dominant_color(original_thumb)
+        
         background = original_thumb.convert("RGBA").filter(filter=ImageFilter.BoxBlur(20))
         enhancer = ImageEnhance.Brightness(background)
         background = enhancer.enhance(0.6)
@@ -90,7 +104,7 @@ async def gen_thumb(videoid: str):
                               outline="white",
                               width=background_border_width)
 
-        # Draw the main rounded-rectangle thumbnail with a full white border
+        # Draw the main rounded-rectangle thumbnail with a full border
         thumb_width, thumb_height = 800, 450
         border_width = 10
         border_radius = 25
@@ -98,7 +112,8 @@ async def gen_thumb(videoid: str):
         thumb_x, thumb_y = (1280 - thumb_width) // 2, 60
         border_x, border_y = thumb_x - border_width, thumb_y - border_width
         
-        draw.rounded_rectangle([(border_x, border_y), (border_x + thumb_width + 2*border_width, border_y + thumb_height + 2*border_width)], radius=border_radius + border_width, fill="white")
+        # Use dominant color for border
+        draw.rounded_rectangle([(border_x, border_y), (border_x + thumb_width + 2*border_width, border_y + thumb_height + 2*border_width)], radius=border_radius + border_width, fill=dominant_color)
         
         main_thumb_resized = original_thumb.resize((thumb_width, thumb_height))
         mask_thumb = Image.new('L', main_thumb_resized.size, 0)
@@ -122,22 +137,16 @@ async def gen_thumb(videoid: str):
         progress_percentage = random.uniform(0.1, 0.9)
         progress_length = int(bar_length * progress_percentage)
         
-        progress_end_color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+        # Use dominant color for progress bar
+        progress_layer = Image.new('RGB', (progress_length, 8), dominant_color)
         
-        progress_layer = Image.new('RGB', (progress_length, 8))
-        progress_draw = ImageDraw.Draw(progress_layer)
-        for i in range(progress_length):
-            r = int(progress_end_color[0] * (i/progress_length))
-            g = int(progress_end_color[1] * (i/progress_length))
-            b = int(progress_end_color[2] * (i/progress_length))
-            progress_draw.line((i, 0, i, 8), fill=(r,g,b))
-            
         background.paste(progress_layer, (bar_x_position, bar_y_position - 4))
         
         circle_radius = 15
         circle_x_position = bar_x_position + progress_length
+        # Use dominant color for circle
         draw.ellipse([circle_x_position - circle_radius, bar_y_position - circle_radius,
-                      circle_x_position + circle_radius, bar_y_position + circle_radius], fill=(255, 0, 255))
+                      circle_x_position + circle_radius, bar_y_position + circle_radius], fill=dominant_color)
         
         draw_text_with_shadow(background, draw, (bar_x_position, bar_y_position + 15), "00:00", arial, (255, 255, 255))
         draw_text_with_shadow(background, draw, (bar_x_position + bar_length - 70, bar_y_position + 15), duration, arial, (255, 255, 255))
@@ -149,7 +158,7 @@ async def gen_thumb(videoid: str):
         background.paste(play_icons, (icon_x_position, icon_y_position), play_icons)
         
         os.remove(download_path)
-        background_path = f"cache/{videoid}_v10.png"
+        background_path = f"cache/{videoid}_v11.png"
         background.save(background_path)
         
         return background_path
