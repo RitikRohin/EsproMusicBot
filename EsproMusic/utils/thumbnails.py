@@ -4,12 +4,15 @@ import os
 import re
 import aiofiles
 import aiohttp
+import asyncio
+import traceback
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 from youtubesearchpython.__future__ import VideosSearch
 
 logging.basicConfig(level=logging.INFO)
 
 def changeImageSize(maxWidth, maxHeight, image):
+    """Resizes an image while maintaining its aspect ratio."""
     widthRatio = maxWidth / image.size[0]
     heightRatio = maxHeight / image.size[1]
     newWidth = int(widthRatio * image.size[0])
@@ -18,230 +21,159 @@ def changeImageSize(maxWidth, maxHeight, image):
     return newImage
 
 def truncate(text):
-    list = text.split(" ")
-    text1 = ""
-    text2 = ""    
-    for i in list:
-        if len(text1) + len(i) < 30:        
-            text1 += " " + i
-        elif len(text2) + len(i) < 30:       
-            text2 += " " + i
-
-    text1 = text1.strip()
-    text2 = text2.strip()     
-    return [text1,text2]
+    """Truncates text to a single line for better formatting."""
+    if len(text) > 40:
+        return text[:40] + "..."
+    return text
 
 def random_color():
+    """Generates a random RGB color tuple."""
     return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
-def generate_gradient(width, height, start_color, end_color):
-    base = Image.new('RGBA', (width, height), start_color)
-    top = Image.new('RGBA', (width, height), end_color)
-    mask = Image.new('L', (width, height))
-    mask_data = []
-    for y in range(height):
-        mask_data.extend([int(60 * (y / height))] * width)
-    mask.putdata(mask_data)
-    base.paste(top, (0, 0), mask)
-    return base
-
-def add_border(image, border_width, border_color):
-    width, height = image.size
-    new_width = width + 2 * border_width
-    new_height = height + 2 * border_width
-    new_image = Image.new("RGBA", (new_width, new_height), border_color)
-    new_image.paste(image, (border_width, border_width))
-    return new_image
-
-def crop_center_circle(img, output_size, border, border_color, crop_scale=1.5):
-    half_the_width = img.size[0] / 2
-    half_the_height = img.size[1] / 2
-    larger_size = int(output_size * crop_scale)
-    img = img.crop(
-        (
-            half_the_width - larger_size/2,
-            half_the_height - larger_size/2,
-            half_the_width + larger_size/2,
-            half_the_height + larger_size/2
-        )
-    )
+def draw_rounded_rectangle(image, xy, radius, fill_color):
+    """Draws a rounded rectangle using a mask."""
+    x1, y1, x2, y2 = xy
+    mask = Image.new('L', image.size, 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.rounded_rectangle([x1, y1, x2, y2], radius=radius, fill=255)
     
-    img = img.resize((output_size - 2*border, output_size - 2*border))
-    
-    
-    final_img = Image.new("RGBA", (output_size, output_size), border_color)
-    
-    
-    mask_main = Image.new("L", (output_size - 2*border, output_size - 2*border), 0)
-    draw_main = ImageDraw.Draw(mask_main)
-    draw_main.ellipse((0, 0, output_size - 2*border, output_size - 2*border), fill=255)
-    
-    final_img.paste(img, (border, border), mask_main)
-    
-    
-    mask_border = Image.new("L", (output_size, output_size), 0)
-    draw_border = ImageDraw.Draw(mask_border)
-    draw_border.ellipse((0, 0, output_size, output_size), fill=255)
-    
-    result = Image.composite(final_img, Image.new("RGBA", final_img.size, (0, 0, 0, 0)), mask_border)
-    
-    return result
+    fill_layer = Image.new('RGBA', image.size, fill_color)
+    image.paste(fill_layer, (0,0), mask)
 
 def draw_text_with_shadow(background, draw, position, text, font, fill, shadow_offset=(3, 3), shadow_blur=5):
-    
+    """Draws text with a shadow for better visibility."""
     shadow = Image.new('RGBA', background.size, (0, 0, 0, 0))
     shadow_draw = ImageDraw.Draw(shadow)
-    
-    
     shadow_draw.text(position, text, font=font, fill="black")
-    
-    
     shadow = shadow.filter(ImageFilter.GaussianBlur(radius=shadow_blur))
-    
-    
     background.paste(shadow, shadow_offset, shadow)
-    
-    
     draw.text(position, text, font=font, fill=fill)
 
 async def gen_thumb(videoid: str):
+    """Generates a unique thumbnail for a given YouTube video ID."""
     try:
-        if os.path.isfile(f"cache/{videoid}_v4.png"):
-            return f"cache/{videoid}_v4.png"
+        # Check for cached thumbnail
+        if os.path.isfile(f"cache/{videoid}_v5.png"):
+            logging.info(f"Using cached thumbnail for {videoid}")
+            return f"cache/{videoid}_v5.png"
 
         url = f"https://www.youtube.com/watch?v={videoid}"
         results = VideosSearch(url, limit=1)
-        for result in (await results.next())["result"]:
-            title = result.get("title")
-            if title:
-                title = re.sub("\W+", " ", title).title()
-            else:
-                title = "Unsupported Title"
-            duration = result.get("duration")
-            if not duration:
-                duration = "Live"
-            thumbnail_data = result.get("thumbnails")
-            if thumbnail_data:
-                thumbnail = thumbnail_data[0]["url"].split("?")[0]
-            else:
-                thumbnail = None
-            views_data = result.get("viewCount")
-            if views_data:
-                views = views_data.get("short")
-                if not views:
-                    views = "Unknown Views"
-            else:
-                views = "Unknown Views"
-            channel_data = result.get("channel")
-            if channel_data:
-                channel = channel_data.get("name")
-                if not channel:
-                    channel = "Unknown Channel"
-            else:
-                channel = "Unknown Channel"
-
+        video_info = (await results.next())["result"][0]
         
+        title = truncate(re.sub("\W+", " ", video_info.get("title", "Unsupported Title")).title())
+        duration = video_info.get("duration", "Live")
+        thumbnail_url = video_info.get("thumbnails", [{}])[0].get("url", "").split("?")[0]
+        views = video_info.get("viewCount", {}).get("short", "Unknown Views")
+        channel = video_info.get("channel", {}).get("name", "Unknown Channel")
+
+        # Download thumbnail
+        if not thumbnail_url:
+            logging.error("Thumbnail URL not found.")
+            return None
+
         async with aiohttp.ClientSession() as session:
-            async with session.get(thumbnail) as resp:
-        
+            async with session.get(thumbnail_url) as resp:
                 content = await resp.read()
-                if resp.status == 200:
-                    content_type = resp.headers.get('Content-Type')
-                    if 'jpeg' in content_type or 'jpg' in content_type:
-                        extension = 'jpg'
-                    elif 'png' in content_type:
-                        extension = 'png'
-                    else:
-                        logging.error(f"Unexpected content type: {content_type}")
-                        return None
-
-                    filepath = f"cache/thumb{videoid}.png"
-                    f = await aiofiles.open(filepath, mode="wb")
-                    await f.write(await resp.read())
-                    await f.close()
-                    # os.system(f"file {filepath}")
+                if resp.status != 200:
+                    logging.error(f"Failed to download thumbnail: {resp.status}")
+                    return None
+                
+                download_path = f"cache/thumb_{videoid}.png"
+                async with aiofiles.open(download_path, mode="wb") as f:
+                    await f.write(content)
                     
+        # Image Processing
+        original_thumb = Image.open(download_path)
+        original_thumb = changeImageSize(1280, 720, original_thumb)
         
-        image_path = f"cache/thumb{videoid}.png"
-        youtube = Image.open(image_path)
-        image1 = changeImageSize(1280, 720, youtube)
-        
-        image2 = image1.convert("RGBA")
-        background = image2.filter(filter=ImageFilter.BoxBlur(20))
+        background = original_thumb.convert("RGBA").filter(filter=ImageFilter.BoxBlur(20))
         enhancer = ImageEnhance.Brightness(background)
         background = enhancer.enhance(0.6)
 
-        
-        start_gradient_color = random_color()
-        end_gradient_color = random_color()
-        gradient_image = generate_gradient(1280, 720, start_gradient_color, end_gradient_color)
-        background = Image.blend(background, gradient_image, alpha=0.2)
-        
         draw = ImageDraw.Draw(background)
         arial = ImageFont.truetype("EsproMusic/assets/font2.ttf", 30)
-        font = ImageFont.truetype("EsproMusic/assets/font.ttf", 30)
-        title_font = ImageFont.truetype("EsproMusic/assets/font3.ttf", 45)
+        title_font = ImageFont.truetype("EsproMusic/assets/font3.ttf", 35)
 
+        # Draw the main rounded-rectangle thumbnail
+        thumb_width, thumb_height = 800, 450
+        thumb_x, thumb_y = (1280 - thumb_width) // 2, 60
+        main_thumb_resized = original_thumb.resize((thumb_width, thumb_height))
 
-        circle_thumbnail = crop_center_circle(youtube, 400, 20, start_gradient_color)
-        circle_thumbnail = circle_thumbnail.resize((400, 400))
-        circle_position = (120, 160)
-        background.paste(circle_thumbnail, circle_position, circle_thumbnail)
-
-        text_x_position = 565
-        title1 = truncate(title)
-        draw_text_with_shadow(background, draw, (text_x_position, 180), title1[0], title_font, (255, 255, 255))
-        draw_text_with_shadow(background, draw, (text_x_position, 230), title1[1], title_font, (255, 255, 255))
-        draw_text_with_shadow(background, draw, (text_x_position, 320), f"{channel}  |  {views[:23]}", arial, (255, 255, 255))
-
-
-        line_length = 580  
-        line_color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-
-        if duration != "Live":
-            color_line_percentage = random.uniform(0.15, 0.85)
-            color_line_length = int(line_length * color_line_percentage)
-            white_line_length = line_length - color_line_length
-
-            start_point_color = (text_x_position, 380)
-            end_point_color = (text_x_position + color_line_length, 380)
-            draw.line([start_point_color, end_point_color], fill=line_color, width=9)
+        mask = Image.new('L', main_thumb_resized.size, 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.rounded_rectangle([(0,0), (thumb_width, thumb_height)], radius=25, fill=255)
         
-            start_point_white = (text_x_position + color_line_length, 380)
-            end_point_white = (text_x_position + line_length, 380)
-            draw.line([start_point_white, end_point_white], fill="white", width=8)
-        
-            circle_radius = 10 
-            circle_position = (end_point_color[0], end_point_color[1])
-            draw.ellipse([circle_position[0] - circle_radius, circle_position[1] - circle_radius,
-                      circle_position[0] + circle_radius, circle_position[1] + circle_radius], fill=line_color)
-    
-        else:
-            line_color = (255, 0, 0)
-            start_point_color = (text_x_position, 380)
-            end_point_color = (text_x_position + line_length, 380)
-            draw.line([start_point_color, end_point_color], fill=line_color, width=9)
-        
-            circle_radius = 10 
-            circle_position = (end_point_color[0], end_point_color[1])
-            draw.ellipse([circle_position[0] - circle_radius, circle_position[1] - circle_radius,
-                          circle_position[0] + circle_radius, circle_position[1] + circle_radius], fill=line_color)
+        background.paste(main_thumb_resized, (thumb_x, thumb_y), mask)
 
-        draw_text_with_shadow(background, draw, (text_x_position, 400), "00:00", arial, (255, 255, 255))
-        draw_text_with_shadow(background, draw, (1080, 400), duration, arial, (255, 255, 255))
+        # Draw text and info below the thumbnail
+        text_y_position = thumb_y + thumb_height + 40
+        draw_text_with_shadow(background, draw, (300, text_y_position), title, title_font, (255, 255, 255))
         
+        text_y_position += 50
+        info_text = f"{channel} | {views}"
+        draw_text_with_shadow(background, draw, (300, text_y_position), info_text, arial, (200, 200, 200))
+
+        # Gradient Progress Bar
+        bar_y_position = text_y_position + 60
+        bar_x_position = (1280 - 1000) // 2
+        bar_length = 1000
+        
+        draw.line([bar_x_position, bar_y_position, bar_x_position + bar_length, bar_y_position], fill=(200, 200, 200), width=8)
+
+        progress_percentage = random.uniform(0.1, 0.9)
+        progress_length = int(bar_length * progress_percentage)
+        
+        progress_end_color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+        
+        progress_layer = Image.new('RGB', (progress_length, 8))
+        progress_draw = ImageDraw.Draw(progress_layer)
+        for i in range(progress_length):
+            r = int(progress_end_color[0] * (i/progress_length))
+            g = int(progress_end_color[1] * (i/progress_length))
+            b = int(progress_end_color[2] * (i/progress_length))
+            progress_draw.line((i, 0, i, 8), fill=(r,g,b))
+            
+        background.paste(progress_layer, (bar_x_position, bar_y_position - 4))
+        
+        circle_radius = 15
+        circle_x_position = bar_x_position + progress_length
+        draw.ellipse([circle_x_position - circle_radius, bar_y_position - circle_radius,
+                      circle_x_position + circle_radius, bar_y_position + circle_radius], fill=(255, 0, 255))
+        
+        # Draw time stamps and play icons
+        draw_text_with_shadow(background, draw, (bar_x_position, bar_y_position + 15), "00:00", arial, (255, 255, 255))
+        draw_text_with_shadow(background, draw, (bar_x_position + bar_length - 70, bar_y_position + 15), duration, arial, (255, 255, 255))
+
         play_icons = Image.open("EsproMusic/assets/play_icons.png")
-        play_icons = play_icons.resize((580, 62))
-        background.paste(play_icons, (text_x_position, 450), play_icons)
-
-        os.remove(f"cache/thumb{videoid}.png")
-
-        background_path = f"cache/{videoid}_v4.png"
+        play_icons = play_icons.resize((500, 50))
+        icon_y_position = bar_y_position + 70
+        icon_x_position = (1280 - 500) // 2
+        background.paste(play_icons, (icon_x_position, icon_y_position), play_icons)
+        
+        os.remove(download_path)
+        background_path = f"cache/{videoid}_v5.png"
         background.save(background_path)
         
         return background_path
 
     except Exception as e:
-        logging.error(f"Error generating thumbnail for video {videoid}: {e}")
+        logging.error(f"Error generating new thumbnail for video {videoid}: {e}")
         traceback.print_exc()
         return None
+
+if __name__ == "__main__":
+    VIDEO_ID = "3Z_x7vBqr6E" 
+    
+    if not os.path.exists("cache"):
+        os.makedirs("cache")
+    if not os.path.exists("EsproMusic/assets"):
+        os.makedirs("EsproMusic/assets")
+        print("Please place your font files and 'play_icons.png' in the EsproMusic/assets/ folder.")
+    
+    async def main():
+        thumbnail_path = await gen_thumb(VIDEO_ID)
+        if thumbnail_path:
+            print(f"Thumbnail created successfully at: {thumbnail_path}")
+    
+    asyncio.run(main())
