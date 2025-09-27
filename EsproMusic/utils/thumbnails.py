@@ -1,18 +1,17 @@
-import random
-import logging
 import os
 import re
+
 import aiofiles
 import aiohttp
-import asyncio
-import traceback
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
+from unidecode import unidecode
 from youtubesearchpython.__future__ import VideosSearch
 
-logging.basicConfig(level=logging.INFO)
+from EsproMusic import app
+from config import YOUTUBE_IMG_URL
+
 
 def changeImageSize(maxWidth, maxHeight, image):
-    """Resizes an image while maintaining its aspect ratio."""
     widthRatio = maxWidth / image.size[0]
     heightRatio = maxHeight / image.size[1]
     newWidth = int(widthRatio * image.size[0])
@@ -20,151 +19,103 @@ def changeImageSize(maxWidth, maxHeight, image):
     newImage = image.resize((newWidth, newHeight))
     return newImage
 
-def truncate(text):
-    """Truncates text to a single line for better formatting."""
-    if len(text) > 40:
-        return text[:40] + "..."
-    return text
 
-def random_color():
-    """Generates a random RGB color tuple."""
-    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+def clear(text):
+    list = text.split(" ")
+    title = ""
+    for i in list:
+        if len(title) + len(i) < 60:
+            title += " " + i
+    return title.strip()
 
-def draw_text_with_shadow(background, draw, position, text, font, fill, shadow_offset=(3, 3), shadow_blur=5):
-    """Draws text with a shadow for better visibility."""
-    shadow = Image.new('RGBA', background.size, (0, 0, 0, 0))
-    shadow_draw = ImageDraw.Draw(shadow)
-    shadow_draw.text(position, text, font=font, fill="black")
-    shadow = shadow.filter(ImageFilter.GaussianBlur(radius=shadow_blur))
-    background.paste(shadow, shadow_offset, shadow)
-    draw.text(position, text, font=font, fill=fill)
 
-async def gen_thumb(videoid: str):
-    """Generates a unique thumbnail for a given YouTube video ID."""
+async def get_thumb(videoid):
+    if os.path.isfile(f"cache/{videoid}.png"):
+        return f"cache/{videoid}.png"
+
+    url = f"https://www.youtube.com/watch?v={videoid}"
     try:
-        if os.path.isfile(f"cache/{videoid}_v12.png"):
-            logging.info(f"Using cached thumbnail for {videoid}")
-            return f"cache/{videoid}_v12.png"
-
-        url = f"https://www.youtube.com/watch?v={videoid}"
         results = VideosSearch(url, limit=1)
-        video_info = (await results.next())["result"][0]
-        
-        title = truncate(re.sub("\W+", " ", video_info.get("title", "Unsupported Title")).title())
-        duration = video_info.get("duration", "Live")
-        thumbnail_url = video_info.get("thumbnails", [{}])[0].get("url", "").split("?")[0]
-        views = video_info.get("viewCount", {}).get("short", "Unknown Views")
-        channel = video_info.get("channel", {}).get("name", "Unknown Channel")
-
-        if not thumbnail_url:
-            logging.error("Thumbnail URL not found.")
-            return None
+        for result in (await results.next())["result"]:
+            try:
+                title = result["title"]
+                title = re.sub("\W+", " ", title)
+                title = title.title()
+            except:
+                title = "Unsupported Title"
+            try:
+                duration = result["duration"]
+            except:
+                duration = "Unknown Mins"
+            thumbnail = result["thumbnails"][0]["url"].split("?")[0]
+            try:
+                views = result["viewCount"]["short"]
+            except:
+                views = "Unknown Views"
+            try:
+                channel = result["channel"]["name"]
+            except:
+                channel = "Unknown Channel"
 
         async with aiohttp.ClientSession() as session:
-            async with session.get(thumbnail_url) as resp:
-                content = await resp.read()
-                if resp.status != 200:
-                    logging.error(f"Failed to download thumbnail: {resp.status}")
-                    return None
-                
-                download_path = f"cache/thumb_{videoid}.png"
-                async with aiofiles.open(download_path, mode="wb") as f:
-                    await f.write(content)
-                    
-        original_thumb = Image.open(download_path)
-        original_thumb = changeImageSize(1280, 720, original_thumb)
-        
-        background = original_thumb.convert("RGBA").filter(filter=ImageFilter.BoxBlur(20))
-        enhancer = ImageEnhance.Brightness(background)
-        background = enhancer.enhance(0.6)
+            async with session.get(thumbnail) as resp:
+                if resp.status == 200:
+                    f = await aiofiles.open(f"cache/thumb{videoid}.png", mode="wb")
+                    await f.write(await resp.read())
+                    await f.close()
 
+        youtube = Image.open(f"cache/thumb{videoid}.png")
+        image1 = changeImageSize(1280, 720, youtube)
+        image2 = image1.convert("RGBA")
+        background = image2.filter(filter=ImageFilter.BoxBlur(10))
+        enhancer = ImageEnhance.Brightness(background)
+        background = enhancer.enhance(0.5)
         draw = ImageDraw.Draw(background)
         arial = ImageFont.truetype("EsproMusic/assets/font2.ttf", 30)
-        title_font = ImageFont.truetype("EsproMusic/assets/font3.ttf", 35)
-
-        # Draw a white border on the background itself
-        background_border_width = 10
-        draw.rounded_rectangle([(background_border_width, background_border_width),
-                               (background.width - background_border_width, background.height - background_border_width)],
-                              radius=25,
-                              outline="white",
-                              width=background_border_width)
-
-        # Draw the main rounded-rectangle thumbnail with a full white border
-        thumb_width, thumb_height = 800, 450
-        border_width = 10
-        border_radius = 25
-        
-        thumb_x, thumb_y = (1280 - thumb_width) // 2, 60
-        border_x, border_y = thumb_x - border_width, thumb_y - border_width
-        
-        draw.rounded_rectangle([(border_x, border_y), (border_x + thumb_width + 2*border_width, border_y + thumb_height + 2*border_width)], radius=border_radius + border_width, fill="white")
-        
-        main_thumb_resized = original_thumb.resize((thumb_width, thumb_height))
-        mask_thumb = Image.new('L', main_thumb_resized.size, 0)
-        draw_mask_thumb = ImageDraw.Draw(mask_thumb)
-        draw_mask_thumb.rounded_rectangle([(0,0), (thumb_width, thumb_height)], radius=border_radius, fill=255)
-        background.paste(main_thumb_resized, (thumb_x, thumb_y), mask_thumb)
-
-        text_y_position = 60 + thumb_height + 40
-        draw_text_with_shadow(background, draw, (300, text_y_position), title, title_font, (255, 255, 255))
-        
-        text_y_position += 50
-        info_text = f"{channel} | {views}"
-        draw_text_with_shadow(background, draw, (300, text_y_position), info_text, arial, (200, 200, 200))
-
-        bar_y_position = text_y_position + 60
-        bar_x_position = (1280 - 1000) // 2
-        bar_length = 1000
-        
-        draw.line([bar_x_position, bar_y_position, bar_x_position + bar_length, bar_y_position], fill=(200, 200, 200), width=8)
-
-        progress_percentage = random.uniform(0.1, 0.9)
-        progress_length = int(bar_length * progress_percentage)
-        
-        # Progress bar ka rang ab safed hai
-        progress_layer = Image.new('RGB', (progress_length, 8), "white")
-        
-        background.paste(progress_layer, (bar_x_position, bar_y_position - 4))
-        
-        circle_radius = 15
-        circle_x_position = bar_x_position + progress_length
-        # Progress bar ke circle ka rang ab safed hai
-        draw.ellipse([circle_x_position - circle_radius, bar_y_position - circle_radius,
-                      circle_x_position + circle_radius, bar_y_position + circle_radius], fill="white")
-        
-        draw_text_with_shadow(background, draw, (bar_x_position, bar_y_position + 15), "00:00", arial, (255, 255, 255))
-        draw_text_with_shadow(background, draw, (bar_x_position + bar_length - 70, bar_y_position + 15), duration, arial, (255, 255, 255))
-
-        play_icons = Image.open("EsproMusic/assets/play_icons.png")
-        play_icons = play_icons.resize((500, 50))
-        icon_y_position = bar_y_position + 70
-        icon_x_position = (1280 - 500) // 2
-        background.paste(play_icons, (icon_x_position, icon_y_position), play_icons)
-        
-        os.remove(download_path)
-        background_path = f"cache/{videoid}_v12.png"
-        background.save(background_path)
-        
-        return background_path
-
+        font = ImageFont.truetype("EsproMusic/assets/font.ttf", 30)
+        draw.text((1110, 8), unidecode(app.name), fill="white", font=arial)
+        draw.text(
+            (55, 560),
+            f"{channel} | {views[:23]}",
+            (255, 255, 255),
+            font=arial,
+        )
+        draw.text(
+            (57, 60),
+            clear(title),
+            (255, 255, 255),
+            font=font,
+        )
+        draw.line(
+            [(55, 660), (1220, 660)],
+            fill="white",
+            width=5,
+            joint="curve",
+        )
+        draw.ellipse(
+            [(918, 648), (942, 672)],
+            outline="white",
+            fill="white",
+            width=15,
+        )
+        draw.text(
+            (36, 685),
+            "00:00",
+            (255, 255, 255),
+            font=arial,
+        )
+        draw.text(
+            (1185, 685),
+            f"{duration[:23]}",
+            (255, 255, 255),
+            font=arial,
+        )
+        try:
+            os.remove(f"cache/thumb{videoid}.png")
+        except:
+            pass
+        background.save(f"cache/{videoid}.png")
+        return f"cache/{videoid}.png"
     except Exception as e:
-        logging.error(f"Error generating new thumbnail for video {videoid}: {e}")
-        traceback.print_exc()
-        return None
-
-if __name__ == "__main__":
-    VIDEO_ID = "3Z_x7vBqr6E" 
-    
-    if not os.path.exists("cache"):
-        os.makedirs("cache")
-    if not os.path.exists("EsproMusic/assets"):
-        os.makedirs("EsproMusic/assets")
-        print("Please place your font files and 'play_icons.png' in the EsproMusic/assets/ folder.")
-    
-    async def main():
-        thumbnail_path = await gen_thumb(VIDEO_ID)
-        if thumbnail_path:
-            print(f"Thumbnail created successfully at: {thumbnail_path}")
-    
-    asyncio.run(main())
+        print(e)
+        return YOUTUBE_IMG_URL
