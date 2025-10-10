@@ -101,7 +101,7 @@ class YouTubeAPI:
             "existing_files": 0
         }
 
-    async def _get_video_details(self, link: str, limit: int = 20) -> Union[dict, None]:
+async def _get_video_details(self, link: str, limit: int = 20) -> Union[dict, None]:
     """Helper function to get video details with duration limit and error handling"""
     try:
         results = VideosSearch(link, limit=limit)
