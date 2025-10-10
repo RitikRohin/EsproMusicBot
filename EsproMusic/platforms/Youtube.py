@@ -20,8 +20,8 @@ from urllib.parse import urlparse, parse_qs
 import httpx
 
 # ============== CONFIGURE YOUR API ==============
-YOUR_API_URL = "http://45.38.42.10:8000"
-YOUR_API_KEY = "a9d354c4425e4b6b9c73b0854e56079f"            # <--- Change me!
+YOUR_API_URL = "https://tgapi.xbitcode.com"
+YOUR_API_KEY = "xbit_3ENGZIE7WXYVAB17C3MHX1"            # <--- Change me!
 # ================================================
 
 async def get_file_from_api(video_id, audio=True):
