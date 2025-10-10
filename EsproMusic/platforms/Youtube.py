@@ -108,11 +108,13 @@ class YouTubeAPI:
             search_results = (await results.next()).get("result", [])
 
             for result in search_results:
-                duration_str = result.get("duration", "0:00")
+                duration_str = result.get("duration")
 
-                # Convert duration to seconds
-                try:
-                    parts = duration_str.split(":")
+if not duration_str or not isinstance(duration_str, str):
+    continue
+
+try:
+    parts = duration_str.split(":")
                     duration_secs = 0
                     if len(parts) == 3:  # HH:MM:SS
                         duration_secs = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
