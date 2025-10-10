@@ -102,43 +102,46 @@ class YouTubeAPI:
         }
 
     async def _get_video_details(self, link: str, limit: int = 20) -> Union[dict, None]:
-        """Helper function to get video details with duration limit and error handling"""
-        try:
-            results = VideosSearch(link, limit=limit)
-            search_results = (await results.next()).get("result", [])
+    """Helper function to get video details with duration limit and error handling"""
+    try:
+        results = VideosSearch(link, limit=limit)
+        search_results = (await results.next()).get("result", [])
 
-            for result in search_results:
-                duration_str = result.get("duration")
+        for result in search_results:
+            duration_str = result.get("duration")
 
-if not duration_str or not isinstance(duration_str, str):
-    continue
+            # Skip if no duration info (like livestreams or invalid results)
+            if not duration_str or not isinstance(duration_str, str):
+                continue
 
-try:
-    parts = duration_str.split(":")
-                    duration_secs = 0
-                    if len(parts) == 3:  # HH:MM:SS
-                        duration_secs = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-                    elif len(parts) == 2:  # MM:SS
-                        duration_secs = int(parts[0]) * 60 + int(parts[1])
+            try:
+                parts = duration_str.split(":")
+                duration_secs = 0
+                if len(parts) == 3:  # HH:MM:SS
+                    duration_secs = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+                elif len(parts) == 2:  # MM:SS
+                    duration_secs = int(parts[0]) * 60 + int(parts[1])
 
-                    # Skip videos longer than 1 hour
-                    if duration_secs > 3600:
-                        continue
-
-                    return result
-
-                except (ValueError, IndexError):
+                # Skip videos longer than 1 hour
+                if duration_secs > 3600:
                     continue
-            
-            search = CustomSearch(query=link, searchPreferences="EgIYAw==" ,limit=1)
-            for res in (await search.next()).get("result", []):
-                return res
 
-            return None
+                # Return the first valid result
+                return result
 
-        except Exception as e:
-            LOGGER(__name__).error(f"Error in _get_video_details: {str(e)}")
-            return None
+            except (ValueError, IndexError):
+                continue
+
+        # Fallback if no valid duration found
+        search = CustomSearch(query=link, searchPreferences="EgIYAw==", limit=1)
+        for res in (await search.next()).get("result", []):
+            return res
+
+        return None
+
+    except Exception as e:
+        LOGGER(__name__).error(f"Error in _get_video_details: {str(e)}")
+        return None
 
     async def exists(self, link: str, videoid: Union[bool, str] = None):
         if videoid:
