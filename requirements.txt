@@ -5,26 +5,26 @@ beautifulsoup4
 dnspython
 ffmpeg-python
 gitpython
-isodate
 hachoir
 heroku3
 httpx==0.27.2
 motor
 numpy
-pillow
+opencv-python
+pillow==11.0.0
 psutil
-py-tgcalls==0.9.7
+py-tgcalls==2.2.0
 pykeyboard
-pyrofork
+https://github.com/KurimuzonAkuma/pyrogram/archive/v2.1.23.zip
 python-dotenv
 pyyaml
 requests
-lexica-api
 speedtest-cli
 spotipy
-tgcrypto
+pymongo==3.12.0
+tgcrypto;sys_platform != "win32"
 unidecode
-google-api-python-client
-yt-dlp[default]
+uvloop;sys_platform != "win32"
+yt-dlp
+youtube-search
 youtube-search-python
-gunicorn
