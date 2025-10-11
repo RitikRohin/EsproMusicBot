@@ -108,9 +108,12 @@ class YouTubeAPI:
             search_results = (await results.next()).get("result", [])
 
             for result in search_results:
-                duration_str = result.get("duration", "0:00")
+                duration_str = result.get("duration")
 
-                # Convert duration to seconds
+                # Skip if duration is None or invalid
+                if not duration_str or not isinstance(duration_str, str):
+                    continue
+
                 try:
                     parts = duration_str.split(":")
                     duration_secs = 0
@@ -127,10 +130,12 @@ class YouTubeAPI:
 
                 except (ValueError, IndexError):
                     continue
-            
-            search = CustomSearch(query=link, searchPreferences="EgIYAw==" ,limit=1)
+
+            # Fallback: custom search if normal fails
+            search = CustomSearch(query=link, searchPreferences="EgIYAw==", limit=1)
             for res in (await search.next()).get("result", []):
-                return res
+                if res.get("duration"):
+                    return res
 
             return None
 
