@@ -30,7 +30,7 @@ OWNER_ID = int(getenv("OWNER_ID", None))
 
 # Vars For API End Pont.
 YTPROXY_URL = getenv("YTPROXY_URL", 'https://tgapi.xbitcode.com') ## 
-YT_API_KEY = getenv("YT_API_KEY" , 'xbit_B4BJY2DSA1NEGXRRIGV9YZ') 
+YT_API_KEY = getenv("YT_API_KEY" , 'xbit_3ENGZIE7WXYVAB17C3MHX1') 
 COOKIES_URL=getenv("COOKIES_URL" , "https://gist.githubusercontent.com/sparrow9616/f29fc6588086a3c72d92dd9c03773350/raw/4229f3f4aab4a6693fc0794d136d30f54d67ae85/gistfile1.txt")
 # Your heroku app name
 HEROKU_APP_NAME = getenv("HEROKU_APP_NAME")
