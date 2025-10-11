@@ -8,7 +8,7 @@ from pytgcalls.exceptions import NoActiveGroupCall
 
 import config
 from EsproMusic import Apple, Resso, SoundCloud, Spotify, Telegram, YouTube, app
-from EsproMusic.core.call import Anony
+from EsproMusic.core.call import ritik
 from EsproMusic.utils import seconds_to_min, time_to_seconds
 from EsproMusic.utils.channelplay import get_channeplayCB
 from EsproMusic.utils.decorators.language import languageCB
