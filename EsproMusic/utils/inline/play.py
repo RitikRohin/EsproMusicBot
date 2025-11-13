@@ -1,5 +1,5 @@
 import math
-from EsproMusic import app
+from EsproMusic import app, config 
 from pyrogram.types import InlineKeyboardButton
 
 from EsproMusic.utils.formatters import time_to_seconds
