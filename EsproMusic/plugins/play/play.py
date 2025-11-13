@@ -413,6 +413,7 @@ async def play_commnd(
                         details["duration_min"],
                     ),
                     reply_markup=InlineKeyboardMarkup(buttons),
+                    has_spoiler=True
                 )
                 return await play_logs(message, streamtype=f"Searched on Youtube")
             else:
@@ -428,7 +429,7 @@ async def play_commnd(
                     photo=img,
                     caption=cap,
                     reply_markup=InlineKeyboardMarkup(buttons),
-                    has_spoiler=True  
+                    has_spoiler=True
                 )
                 return await play_logs(message, streamtype=f"URL Searched Inline")
 
@@ -662,5 +663,6 @@ async def slider_queries(client, CallbackQuery, _):
         return await CallbackQuery.edit_message_media(
             media=med, has_spoiler=True, reply_markup=InlineKeyboardMarkup(buttons)
         )
+
 
 
