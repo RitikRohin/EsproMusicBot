@@ -88,6 +88,7 @@ async def start_pm(client, message: Message, _):
             photo=config.START_IMG_URL,
             caption=_["start_2"].format(message.from_user.mention, app.mention),
             reply_markup=InlineKeyboardMarkup(out),
+            has_spoiler=True
         )
         if await is_on_off(2):
             return await app.send_message(
@@ -145,8 +146,10 @@ async def welcome(client, message: Message):
                         app.mention,
                     ),
                     reply_markup=InlineKeyboardMarkup(out),
+                    has_spoiler=True
                 )
                 await add_served_chat(message.chat.id)
                 await message.stop_propagation()
         except Exception as ex:
             print(ex)
+
