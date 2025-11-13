@@ -25,4 +25,4 @@ unidecode
 yt-dlp[default]
 youtube-search
 youtube-search-python
-pyrofork>=2.0.106
+
