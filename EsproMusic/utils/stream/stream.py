@@ -162,6 +162,7 @@ async def stream(
                 chat_id=original_chat_id,
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
                 reply_markup=InlineKeyboardMarkup(button),
+                has_spoiler=True
             )
         else:
             if not forceplay:
@@ -277,6 +278,7 @@ async def stream(
                 chat_id=original_chat_id,
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
                 reply_markup=InlineKeyboardMarkup(button),
+                has_spoiler=True
             )
         else:
             if not forceplay:
@@ -331,6 +333,7 @@ async def stream(
                 chat_id=original_chat_id,
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
                 reply_markup=InlineKeyboardMarkup(button),
+                has_spoiler=True
             )
         else:
             if not forceplay:
@@ -393,6 +396,7 @@ async def stream(
             await mystic.edit_text(
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
                 reply_markup=InlineKeyboardMarkup(button),
+                has_spoiler=True
             )
         else:
             if not forceplay:
