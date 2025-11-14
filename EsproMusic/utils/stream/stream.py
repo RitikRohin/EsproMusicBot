@@ -15,6 +15,18 @@ from EsproMusic.utils.pastebin import RitikBin
 from EsproMusic.utils.stream.queue import put_queue, put_queue_index
 from EsproMusic.utils.thumbnails import gen_thumb
 
+# 🔥 नया: लास्ट क्यू मैसेज ID को स्टोर करने के लिए एक सिंपल इन-मेमोरी डिक्शनरी
+# नोट: आपको इस डिक्शनरी को बॉट के ग्लोबल स्कोप (main file) में परिभाषित करना होगा
+# ताकि यह फंक्शन कॉल्स के बीच डेटा को याद रख सके।
+LAST_QUEUE_MSG = {} 
+
+async def delete_message_safely(chat_id, message_id):
+    """Safely deletes a message by its ID."""
+    if message_id:
+        try:
+            await app.delete_messages(chat_id, message_id)
+        except Exception:
+            pass
 
 async def stream(
     _,
@@ -33,17 +45,10 @@ async def stream(
         return
     if forceplay:
         await Ritik.force_stop_stream(chat_id)
-    
-    # --- DELETION FUNCTIONALITY (To be used when a song starts playing) ---
-    async def delete_old_message(chat_id, message_object):
-        """Deletes the initial command message or previous notification."""
-        try:
-            if message_object and message_object.id:
-                await app.delete_messages(chat_id, message_object.id)
-        except Exception:
-            pass
-    # ------------------------------------------------------------------------
 
+    # ------------------------------------------------------------------------
+    # [1] PLAYLIST STREAM
+    # ------------------------------------------------------------------------
     if streamtype == "playlist":
         msg = f"{_['play_19']}\n\n"
         count = 0
@@ -81,7 +86,9 @@ async def stream(
                 msg += f"{count}. {title[:70]}\n"
                 msg += f"{_['play_20']} {position}\n\n"
             else:
-                await delete_old_message(original_chat_id, mystic) # 🔥 DELETE OLD MESSAGE
+                # 🔥 DELETE OLD COMMAND MESSAGE
+                await delete_message_safely(original_chat_id, mystic.id if mystic else None)
+                
                 if not forceplay:
                     db[chat_id] = []
                 status = True if video else None
@@ -122,7 +129,7 @@ async def stream(
                         user_name,
                     ),
                     reply_markup=InlineKeyboardMarkup(button),
-                    has_spoiler=True # ✅ SPOILER ENABLED
+                    has_spoiler=True
                 )
                 db[chat_id][0]["mystic"] = run
                 db[chat_id][0]["markup"] = "stream"
@@ -144,6 +151,9 @@ async def stream(
                 reply_markup=upl,
             )
             
+    # ------------------------------------------------------------------------
+    # [2] YOUTUBE STREAM
+    # ------------------------------------------------------------------------
     elif streamtype == "youtube":
         link = result["link"]
         vidid = result["vidid"]
@@ -157,7 +167,9 @@ async def stream(
             )
         except:
             raise AssistantErr(_["play_14"])
+            
         if await is_active_chat(chat_id):
+            # Q में मैसेज भेजा जा रहा है
             await put_queue(
                 chat_id,
                 original_chat_id,
@@ -171,13 +183,23 @@ async def stream(
             )
             position = len(db.get(chat_id)) - 1
             button = aq_markup(_, chat_id)
-            await app.send_message(
+            
+            queue_msg = await app.send_message(
                 chat_id=original_chat_id,
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
                 reply_markup=InlineKeyboardMarkup(button),
             )
+            # 🔥 Q MESSAGE ID STORE करें
+            LAST_QUEUE_MSG[original_chat_id] = queue_msg.id
+            
         else:
-            await delete_old_message(original_chat_id, mystic) # 🔥 DELETE OLD MESSAGE
+            # 🔥 OLD Q MESSAGE DELETE करें
+            old_queue_id = LAST_QUEUE_MSG.pop(original_chat_id, None)
+            await delete_message_safely(original_chat_id, old_queue_id)
+            
+            # 🔥 OLD COMMAND MESSAGE DELETE करें
+            await delete_message_safely(original_chat_id, mystic.id if mystic else None)
+            
             if not forceplay:
                 db[chat_id] = []
             await Ritik.join_call(
@@ -211,11 +233,14 @@ async def stream(
                     user_name,
                 ),
                 reply_markup=InlineKeyboardMarkup(button),
-                has_spoiler=True # ✅ SPOILER ENABLED
+                has_spoiler=True
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "stream"
             
+    # ------------------------------------------------------------------------
+    # [3] SOUNDCLOUD STREAM
+    # ------------------------------------------------------------------------
     elif streamtype == "soundcloud":
         file_path = result["filepath"]
         title = result["title"]
@@ -234,13 +259,21 @@ async def stream(
             )
             position = len(db.get(chat_id)) - 1
             button = aq_markup(_, chat_id)
-            await app.send_message(
+            queue_msg = await app.send_message(
                 chat_id=original_chat_id,
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
                 reply_markup=InlineKeyboardMarkup(button),
             )
+            # 🔥 Q MESSAGE ID STORE करें
+            LAST_QUEUE_MSG[original_chat_id] = queue_msg.id
         else:
-            await delete_old_message(original_chat_id, mystic) # 🔥 DELETE OLD MESSAGE
+            # 🔥 OLD Q MESSAGE DELETE करें
+            old_queue_id = LAST_QUEUE_MSG.pop(original_chat_id, None)
+            await delete_message_safely(original_chat_id, old_queue_id)
+            
+            # 🔥 OLD COMMAND MESSAGE DELETE करें
+            await delete_message_safely(original_chat_id, mystic.id if mystic else None)
+
             if not forceplay:
                 db[chat_id] = []
             await Ritik.join_call(chat_id, original_chat_id, file_path, video=None)
@@ -264,11 +297,14 @@ async def stream(
                     config.SUPPORT_CHAT, title[:23], duration_min, user_name
                 ),
                 reply_markup=InlineKeyboardMarkup(button),
-                has_spoiler=True # ✅ SPOILER ENABLED
+                has_spoiler=True
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
             
+    # ------------------------------------------------------------------------
+    # [4] TELEGRAM STREAM
+    # ------------------------------------------------------------------------
     elif streamtype == "telegram":
         file_path = result["path"]
         link = result["link"]
@@ -289,13 +325,21 @@ async def stream(
             )
             position = len(db.get(chat_id)) - 1
             button = aq_markup(_, chat_id)
-            await app.send_message(
+            queue_msg = await app.send_message(
                 chat_id=original_chat_id,
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
                 reply_markup=InlineKeyboardMarkup(button),
             )
+            # 🔥 Q MESSAGE ID STORE करें
+            LAST_QUEUE_MSG[original_chat_id] = queue_msg.id
         else:
-            await delete_old_message(original_chat_id, mystic) # 🔥 DELETE OLD MESSAGE
+            # 🔥 OLD Q MESSAGE DELETE करें
+            old_queue_id = LAST_QUEUE_MSG.pop(original_chat_id, None)
+            await delete_message_safely(original_chat_id, old_queue_id)
+            
+            # 🔥 OLD COMMAND MESSAGE DELETE करें
+            await delete_message_safely(original_chat_id, mystic.id if mystic else None)
+
             if not forceplay:
                 db[chat_id] = []
             await Ritik.join_call(chat_id, original_chat_id, file_path, video=status)
@@ -319,11 +363,14 @@ async def stream(
                 photo=config.TELEGRAM_VIDEO_URL if video else config.TELEGRAM_AUDIO_URL,
                 caption=_["stream_1"].format(link, title[:23], duration_min, user_name),
                 reply_markup=InlineKeyboardMarkup(button),
-                has_spoiler=True # ✅ SPOILER ENABLED
+                has_spoiler=True
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
             
+    # ------------------------------------------------------------------------
+    # [5] LIVE STREAM
+    # ------------------------------------------------------------------------
     elif streamtype == "live":
         link = result["link"]
         vidid = result["vidid"]
@@ -345,13 +392,21 @@ async def stream(
             )
             position = len(db.get(chat_id)) - 1
             button = aq_markup(_, chat_id)
-            await app.send_message(
+            queue_msg = await app.send_message(
                 chat_id=original_chat_id,
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
                 reply_markup=InlineKeyboardMarkup(button),
             )
+            # 🔥 Q MESSAGE ID STORE करें
+            LAST_QUEUE_MSG[original_chat_id] = queue_msg.id
         else:
-            await delete_old_message(original_chat_id, mystic) # 🔥 DELETE OLD MESSAGE
+            # 🔥 OLD Q MESSAGE DELETE करें
+            old_queue_id = LAST_QUEUE_MSG.pop(original_chat_id, None)
+            await delete_message_safely(original_chat_id, old_queue_id)
+            
+            # 🔥 OLD COMMAND MESSAGE DELETE करें
+            await delete_message_safely(original_chat_id, mystic.id if mystic else None)
+
             if not forceplay:
                 db[chat_id] = []
             n, file_path = await YouTube.video(link)
@@ -388,11 +443,14 @@ async def stream(
                     user_name,
                 ),
                 reply_markup=InlineKeyboardMarkup(button),
-                has_spoiler=True # ✅ SPOILER ENABLED
+                has_spoiler=True
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
             
+    # ------------------------------------------------------------------------
+    # [6] INDEX STREAM
+    # ------------------------------------------------------------------------
     elif streamtype == "index":
         link = result
         title = "ɪɴᴅᴇx ᴏʀ ᴍ3ᴜ8 ʟɪɴᴋ"
@@ -410,12 +468,24 @@ async def stream(
             )
             position = len(db.get(chat_id)) - 1
             button = aq_markup(_, chat_id)
-            await mystic.edit_text(
+            
+            # Note: Index stream uses edit_text for queue notification, which returns a Message object
+            queue_msg = await mystic.edit_text(
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
                 reply_markup=InlineKeyboardMarkup(button),
             )
+            # 🔥 Q MESSAGE ID STORE करें
+            LAST_QUEUE_MSG[original_chat_id] = queue_msg.id
+            
         else:
-            await delete_old_message(original_chat_id, mystic) # 🔥 DELETE OLD MESSAGE
+            # 🔥 OLD Q MESSAGE DELETE करें
+            old_queue_id = LAST_QUEUE_MSG.pop(original_chat_id, None)
+            await delete_message_safely(original_chat_id, old_queue_id)
+            
+            # 🔥 OLD COMMAND MESSAGE DELETE करें (mystic को यहाँ delete किया जा रहा है)
+            # चूंकि ऊपर edit_text का उपयोग किया गया था, इसलिए mystic अब queue message बन गया होगा।
+            # हम सिर्फ़ old_queue_id पर भरोसा करेंगे।
+
             if not forceplay:
                 db[chat_id] = []
             await Ritik.join_call(
@@ -441,9 +511,10 @@ async def stream(
                 photo=config.STREAM_IMG_URL,
                 caption=_["stream_2"].format(user_name),
                 reply_markup=InlineKeyboardMarkup(button),
-                has_spoiler=True # ✅ SPOILER ENABLED
+                has_spoiler=True
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
-            await mystic.delete()
-      
+            # original command/queue message को delete करें
+            await delete_message_safely(original_chat_id, mystic.id if mystic else None)
+
