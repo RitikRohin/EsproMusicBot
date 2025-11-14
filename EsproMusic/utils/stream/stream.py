@@ -162,7 +162,6 @@ async def stream(
                 chat_id=original_chat_id,
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
                 reply_markup=InlineKeyboardMarkup(button),
-                has_spoiler=True
             )
         else:
             if not forceplay:
@@ -224,7 +223,6 @@ async def stream(
                 chat_id=original_chat_id,
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
                 reply_markup=InlineKeyboardMarkup(button),
-                has_spoiler=True
             )
         else:
             if not forceplay:
@@ -278,7 +276,6 @@ async def stream(
                 chat_id=original_chat_id,
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
                 reply_markup=InlineKeyboardMarkup(button),
-                has_spoiler=True
             )
         else:
             if not forceplay:
@@ -333,7 +330,6 @@ async def stream(
                 chat_id=original_chat_id,
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
                 reply_markup=InlineKeyboardMarkup(button),
-                has_spoiler=True
             )
         else:
             if not forceplay:
@@ -396,7 +392,6 @@ async def stream(
             await mystic.edit_text(
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
                 reply_markup=InlineKeyboardMarkup(button),
-                has_spoiler=True
             )
         else:
             if not forceplay:
@@ -424,6 +419,7 @@ async def stream(
                 photo=config.STREAM_IMG_URL,
                 caption=_["stream_2"].format(user_name),
                 reply_markup=InlineKeyboardMarkup(button),
+                has_spoiler=True
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
