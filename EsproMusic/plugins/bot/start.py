@@ -106,6 +106,7 @@ async def start_gp(client, message: Message, _):
         photo=config.START_IMG_URL,
         caption=_["start_1"].format(app.mention, get_readable_time(uptime)),
         reply_markup=InlineKeyboardMarkup(out),
+        has_spoiler=True
     )
     return await add_served_chat(message.chat.id)
 
@@ -152,4 +153,5 @@ async def welcome(client, message: Message):
                 await message.stop_propagation()
         except Exception as ex:
             print(ex)
+
 
