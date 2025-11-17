@@ -24,7 +24,8 @@ def clear(text):
     list = text.split(" ")
     title = ""
     for i in list:
-        if len(title) + len(i) < 60:
+        # 60 की जगह कम अक्षर रखें ताकि यह फ़्रेम में फ़िट हो जाए
+        if len(title) + len(i) < 40: 
             title += " " + i
     return title.strip()
 
@@ -38,6 +39,7 @@ async def gen_thumb(videoid):
         results = VideosSearch(url, limit=1)
         for result in (await results.next())["result"]:
             try:
+                # 'title' को नीचे ओवरले के लिए उपयोग किया जा रहा है
                 title = result["title"]
                 title = re.sub("\W+", " ", title)
                 title = title.title()
@@ -76,15 +78,16 @@ async def gen_thumb(videoid):
         # --- कस्टमाइज़्ड राउंडेड रेक्टेंगल फ़्रेम लॉजिक ---
         
         # फ़्रेम के अंदर की इमेज का साइज़ (1280x720 कैनवस पर केंद्रित)
+        # 1180x640: यह साइज़ फ़्रेम के लिए अच्छा है, जो टॉप और बॉटम में 40px मार्जिन छोड़ता है।
         img_w, img_h = 1180, 640
-        x_offset = (1280 - img_w) // 2 # 50
-        y_offset = (720 - img_h) // 2 # 40
+        x_offset = (1280 - img_w) // 2  # 50px
+        y_offset = (720 - img_h) // 2  # 40px
         
         # 2. इनर इमेज (Inner Image) तैयार करें
         framed_image = changeImageSize(img_w, img_h, youtube)
         
         # 3. राउंडेड रेक्टेंगल मास्क (Rounded Rectangle Mask) बनाएं
-        radius = 30
+        radius = 30 
         img_mask = Image.new('L', (img_w, img_h), 0)
         img_draw_mask = ImageDraw.Draw(img_mask)
         
@@ -100,40 +103,42 @@ async def gen_thumb(videoid):
         background.paste(framed_image, (x_offset, y_offset), img_mask)
         
         # 5. सफ़ेद बॉर्डर (White Border) बनाएं
-        # बॉर्डर के निर्देशांक: इनर इमेज के चारों ओर 5px मार्जिन (45, 35, 1235, 685)
         draw = ImageDraw.Draw(background)
-        border_radius = radius + 3
-        draw.rounded_rectangle((45, 35, 1235, 685), radius=border_radius, outline="white", width=5)
+        border_radius = radius + 3 
+        # बॉर्डर के निर्देशांक: इनर इमेज के चारों ओर 5px मार्जिन (45, 35, 1235, 685)
+        draw.rounded_rectangle((x_offset - 5, y_offset - 5, x_offset + img_w + 5, y_offset + img_h + 5), radius=border_radius, outline="white", width=5)
         
-        # --- टेक्स्ट और प्रोग्रेस बार लॉजिक (फ़्रेम पर ओवरले) ---
+        # --- टेक्स्ट और प्रोग्रेस बार लॉजिक ---
         
-        arial = ImageFont.truetype("EsproMusic/assets/font2.ttf", 30)
-        font = ImageFont.truetype("EsproMusic/assets/font.ttf", 30)
+        arial = ImageFont.truetype("EsproMusic/assets/font2.ttf", 30) # छोटे टेक्स्ट के लिए
+        font = ImageFont.truetype("EsproMusic/assets/font.ttf", 30) # शीर्षक के लिए
         
-        # 1. ऐप का नाम (ऊपर-दाएं)
-        draw.text((1110, 8), unidecode(app.name), fill="white", font=arial)
+        # 1. ऐप का नाम (ऊपर-बाएं, जैसा कि रेफरेंस इमेज में दिख रहा है)
+        draw.text((x_offset + 5, y_offset + 5), unidecode(app.name), fill="white", font=arial)
         
-        # 2. मुख्य शीर्षक (Main Title) - फ़्रेम के नीचे की ओर ओवरले
-        # Y=570 (पुराना 60 था)
+        # 2. मुख्य शीर्षक (Main Title) - फ़्रेम के नीचे ओवरले
+        # Y-कोऑर्डिनेट: फ्रेम के नीचे 10px का गैप
         draw.text(
-            (57, 570),
+            (55, y_offset + img_h + 10), 
             clear(title),
             (255, 255, 255),
             font=font,
         )
 
-        # 3. चैनल और व्यूज़ - शीर्षक के नीचे (पुराना 560 था)
-        # Y=620
+        # 3. चैनल और व्यूज़ (Metadata) - शीर्षक के नीचे
+        # Y-कोऑर्डिनेट: शीर्षक के नीचे 5px का गैप
+        metadata_y = y_offset + img_h + draw.textsize(clear(title), font=font)[1] + 15
         draw.text(
-            (55, 620),
+            (55, metadata_y), 
             f"{channel} | {views[:23]}",
             (255, 255, 255),
             font=arial,
         )
         
-        # 4. प्रोग्रेस बार लाइन (पुराना 660 था)
+        # 4. प्रोग्रेस बार लाइन (स्क्रीन के सबसे नीचे)
+        progress_line_y = 660 
         draw.line(
-            [(55, 660), (1220, 660)],
+            [(55, progress_line_y), (1220, progress_line_y)],
             fill="white",
             width=5,
             joint="curve",
@@ -141,22 +146,26 @@ async def gen_thumb(videoid):
         
         # 5. प्रोग्रेस एलिप्स (Ellipse)
         draw.ellipse(
-            [(918, 648), (942, 672)],
+            [(918, progress_line_y - 12), (942, progress_line_y + 12)], 
             outline="white",
             fill="white",
             width=15,
         )
         
-        # 6. टाइमस्टैम्प्स
+        # 6. टाइमस्टैम्प्स (प्रोग्रेस बार के नीचे)
         draw.text(
-            (36, 685),
+            (36, progress_line_y + 25), 
             "00:00",
             (255, 255, 255),
             font=arial,
         )
+        
+        # दाएं अलाइन (Right Align)
+        duration_text = f"{duration[:23]}"
+        duration_w, _ = draw.textsize(duration_text, font=arial)
         draw.text(
-            (1185, 685),
-            f"{duration[:23]}",
+            (1220 - duration_w, progress_line_y + 25), 
+            duration_text,
             (255, 255, 255),
             font=arial,
         )
