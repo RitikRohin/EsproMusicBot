@@ -21,15 +21,16 @@ def clear(text):
 
 async def gen_thumb(videoid):
     try:
+        # Cache check
         cache_path = f"cache/{videoid}.png"
         if os.path.isfile(cache_path):
             return cache_path
 
         url = f"https://www.youtube.com/watch?v={videoid}"
-
         results = VideosSearch(url, limit=1)
         data = (await results.next())["result"][0]
 
+        # Metadata
         title = re.sub("\W+", " ", data.get("title", "No Title")).title()
         duration = data.get("duration", "Unknown")
         thumbnail = data["thumbnails"][0]["url"].split("?")[0]
@@ -43,6 +44,7 @@ async def gen_thumb(videoid):
             "Referer": "https://www.youtube.com/"
         }
 
+        # Download thumbnail
         async with aiohttp.ClientSession() as session:
             async with session.get(thumbnail, headers=headers) as resp:
                 if resp.status != 200:
@@ -54,38 +56,42 @@ async def gen_thumb(videoid):
         youtube = Image.open(f"cache/thumb{videoid}.png")
         base = youtube.resize((1280, 720)).convert("RGBA")
 
+        # Background blur
         bg = base.filter(ImageFilter.GaussianBlur(18))
         bg = ImageEnhance.Brightness(bg).enhance(0.45)
 
-        img_w, img_h = 1180, 600
+        # --- SMALL FRAME SIZE ---
+        img_w, img_h = 600, 300
         x_offset = (1280 - img_w) // 2
         y_offset = 35
 
         small = youtube.resize((img_w, img_h))
-        radius = 40
+        radius = 25
 
         mask = Image.new("L", (img_w, img_h), 0)
         draw_mask = ImageDraw.Draw(mask)
         draw_mask.rounded_rectangle((0, 0, img_w, img_h), radius=radius, fill=255)
-
         bg.paste(small, (x_offset, y_offset), mask)
 
         draw = ImageDraw.Draw(bg)
 
+        # Fonts
         try:
-            font_title = ImageFont.truetype("EsproMusic/assets/font.ttf", 44)
-            font_meta = ImageFont.truetype("EsproMusic/assets/font2.ttf", 30)
+            font_title = ImageFont.truetype("EsproMusic/assets/font.ttf", 38)
+            font_meta = ImageFont.truetype("EsproMusic/assets/font2.ttf", 26)
         except:
             font_title = ImageFont.load_default()
             font_meta = ImageFont.load_default()
 
+        # Border
         draw.rounded_rectangle(
-            (x_offset - 6, y_offset - 6, x_offset + img_w + 6, y_offset + img_h + 6),
-            radius=radius + 5,
+            (x_offset - 4, y_offset - 4, x_offset + img_w + 4, y_offset + img_h + 4),
+            radius=radius + 4,
             outline="white",
-            width=6
+            width=4
         )
 
+        # App name (top-left inside frame)
         draw.text(
             (x_offset + 15, y_offset + 15),
             unidecode(app.name),
@@ -93,34 +99,41 @@ async def gen_thumb(videoid):
             fill="white"
         )
 
+        # Title
         draw.text(
-            (x_offset, y_offset + img_h + 25),
+            (x_offset, y_offset + img_h + 20),
             clear(title),
             font=font_title,
             fill="white"
         )
 
+        # Channel + Views
         meta_text = f"{channel} | {views}"
         draw.text(
-            (x_offset, y_offset + img_h + 75),
+            (x_offset, y_offset + img_h + 55),
             meta_text,
             font=font_meta,
             fill="white"
         )
 
+        # Progress bar
         line_y = 700
         draw.line((55, line_y, 1225, line_y), fill="white", width=6)
 
+        # Knob
         draw.ellipse((930, line_y - 13, 960, line_y + 13), fill="white")
 
+        # Timecodes
         draw.text((40, line_y + 10), "00:00", font=font_meta, fill="white")
         draw.text((1170, line_y + 10), duration, font=font_meta, fill="white")
 
+        # Cleanup
         try:
             os.remove(f"cache/thumb{videoid}.png")
         except:
             pass
 
+        # Save final image
         bg.save(cache_path)
         return cache_path
 
