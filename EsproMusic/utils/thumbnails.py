@@ -30,38 +30,6 @@ async def gen_thumb(videoid):
         results = VideosSearch(url, limit=1)
         data = (await results.next())["result"][0]
 
-import os
-import re
-import aiofiles
-import aiohttp
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
-from unidecode import unidecode
-from youtubesearchpython.__future__ import VideosSearch
-
-from EsproMusic import app
-from config import YOUTUBE_IMG_URL
-
-
-def clear(text):
-    words = text.split(" ")
-    title = ""
-    for w in words:
-        if len(title) + len(w) < 40:
-            title += " " + w
-    return title.strip()
-
-
-async def gen_thumb(videoid):
-    try:
-        # Cache check
-        cache_path = f"cache/{videoid}.png"
-        if os.path.isfile(cache_path):
-            return cache_path
-
-        url = f"https://www.youtube.com/watch?v={videoid}"
-        results = VideosSearch(url, limit=1)
-        data = (await results.next())["result"][0]
-
         # Metadata
         title = re.sub("\W+", " ", data.get("title", "No Title")).title()
         duration = data.get("duration", "Unknown")
@@ -92,7 +60,7 @@ async def gen_thumb(videoid):
         bg = base.filter(ImageFilter.GaussianBlur(18))
         bg = ImageEnhance.Brightness(bg).enhance(0.45)
 
-        # --- UPDATED FRAME SIZE ---
+        # --- FINAL FRAME SIZE ---
         img_w, img_h = 750, 380
         x_offset = (1280 - img_w) // 2
         y_offset = 35
@@ -100,9 +68,11 @@ async def gen_thumb(videoid):
         small = youtube.resize((img_w, img_h))
         radius = 30
 
+        # Rounded rectangle mask
         mask = Image.new("L", (img_w, img_h), 0)
         draw_mask = ImageDraw.Draw(mask)
         draw_mask.rounded_rectangle((0, 0, img_w, img_h), radius=radius, fill=255)
+
         bg.paste(small, (x_offset, y_offset), mask)
 
         draw = ImageDraw.Draw(bg)
@@ -115,7 +85,7 @@ async def gen_thumb(videoid):
             font_title = ImageFont.load_default()
             font_meta = ImageFont.load_default()
 
-        # Border
+        # Border around thumbnail
         draw.rounded_rectangle(
             (x_offset - 5, y_offset - 5, x_offset + img_w + 5, y_offset + img_h + 5),
             radius=radius + 5,
@@ -159,7 +129,7 @@ async def gen_thumb(videoid):
         draw.text((40, line_y + 10), "00:00", font=font_meta, fill="white")
         draw.text((1170, line_y + 10), duration, font=font_meta, fill="white")
 
-        # Cleanup
+        # Cleanup temp file
         try:
             os.remove(f"cache/thumb{videoid}.png")
         except:
