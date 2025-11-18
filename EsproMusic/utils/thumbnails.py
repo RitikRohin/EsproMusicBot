@@ -30,6 +30,38 @@ async def gen_thumb(videoid):
         results = VideosSearch(url, limit=1)
         data = (await results.next())["result"][0]
 
+import os
+import re
+import aiofiles
+import aiohttp
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
+from unidecode import unidecode
+from youtubesearchpython.__future__ import VideosSearch
+
+from EsproMusic import app
+from config import YOUTUBE_IMG_URL
+
+
+def clear(text):
+    words = text.split(" ")
+    title = ""
+    for w in words:
+        if len(title) + len(w) < 40:
+            title += " " + w
+    return title.strip()
+
+
+async def gen_thumb(videoid):
+    try:
+        # Cache check
+        cache_path = f"cache/{videoid}.png"
+        if os.path.isfile(cache_path):
+            return cache_path
+
+        url = f"https://www.youtube.com/watch?v={videoid}"
+        results = VideosSearch(url, limit=1)
+        data = (await results.next())["result"][0]
+
         # Metadata
         title = re.sub("\W+", " ", data.get("title", "No Title")).title()
         duration = data.get("duration", "Unknown")
@@ -60,13 +92,13 @@ async def gen_thumb(videoid):
         bg = base.filter(ImageFilter.GaussianBlur(18))
         bg = ImageEnhance.Brightness(bg).enhance(0.45)
 
-        # --- SMALL FRAME SIZE ---
-        img_w, img_h = 600, 300
+        # --- UPDATED FRAME SIZE ---
+        img_w, img_h = 750, 380
         x_offset = (1280 - img_w) // 2
         y_offset = 35
 
         small = youtube.resize((img_w, img_h))
-        radius = 25
+        radius = 30
 
         mask = Image.new("L", (img_w, img_h), 0)
         draw_mask = ImageDraw.Draw(mask)
@@ -77,23 +109,23 @@ async def gen_thumb(videoid):
 
         # Fonts
         try:
-            font_title = ImageFont.truetype("EsproMusic/assets/font.ttf", 38)
-            font_meta = ImageFont.truetype("EsproMusic/assets/font2.ttf", 26)
+            font_title = ImageFont.truetype("EsproMusic/assets/font.ttf", 42)
+            font_meta = ImageFont.truetype("EsproMusic/assets/font2.ttf", 28)
         except:
             font_title = ImageFont.load_default()
             font_meta = ImageFont.load_default()
 
         # Border
         draw.rounded_rectangle(
-            (x_offset - 4, y_offset - 4, x_offset + img_w + 4, y_offset + img_h + 4),
-            radius=radius + 4,
+            (x_offset - 5, y_offset - 5, x_offset + img_w + 5, y_offset + img_h + 5),
+            radius=radius + 5,
             outline="white",
-            width=4
+            width=5
         )
 
-        # App name (top-left inside frame)
+        # App name
         draw.text(
-            (x_offset + 15, y_offset + 15),
+            (x_offset + 18, y_offset + 18),
             unidecode(app.name),
             font=font_meta,
             fill="white"
@@ -101,7 +133,7 @@ async def gen_thumb(videoid):
 
         # Title
         draw.text(
-            (x_offset, y_offset + img_h + 20),
+            (x_offset, y_offset + img_h + 30),
             clear(title),
             font=font_title,
             fill="white"
@@ -110,7 +142,7 @@ async def gen_thumb(videoid):
         # Channel + Views
         meta_text = f"{channel} | {views}"
         draw.text(
-            (x_offset, y_offset + img_h + 55),
+            (x_offset, y_offset + img_h + 80),
             meta_text,
             font=font_meta,
             fill="white"
@@ -133,7 +165,6 @@ async def gen_thumb(videoid):
         except:
             pass
 
-        # Save final image
         bg.save(cache_path)
         return cache_path
 
