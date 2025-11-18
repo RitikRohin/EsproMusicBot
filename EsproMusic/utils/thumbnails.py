@@ -31,7 +31,7 @@ async def gen_thumb(videoid):
         data = (await results.next())["result"][0]
 
         # Metadata
-        title = re.sub("\W+", " ", data.get("title", "No Title")).title()
+        title = re.sub(r"\W+", " ", data.get("title", "No Title")).title()
         duration = data.get("duration", "Unknown")
         thumbnail = data["thumbnails"][0]["url"].split("?")[0]
         views = data.get("viewCount", {}).get("short", "0 Views")
@@ -60,19 +60,17 @@ async def gen_thumb(videoid):
         bg = base.filter(ImageFilter.GaussianBlur(18))
         bg = ImageEnhance.Brightness(bg).enhance(0.45)
 
-        # --- FINAL FRAME SIZE ---
+        # --- CENTERED FRAME SIZE ---
         img_w, img_h = 750, 380
-        x_offset = (1280 - img_w) // 2
-        y_offset = 35
+        x_offset = (1280 - img_w) // 2        # Center horizontally
+        y_offset = (720 - img_h) // 2         # Center vertically
 
         small = youtube.resize((img_w, img_h))
         radius = 30
 
-        # Rounded rectangle mask
         mask = Image.new("L", (img_w, img_h), 0)
         draw_mask = ImageDraw.Draw(mask)
         draw_mask.rounded_rectangle((0, 0, img_w, img_h), radius=radius, fill=255)
-
         bg.paste(small, (x_offset, y_offset), mask)
 
         draw = ImageDraw.Draw(bg)
@@ -85,7 +83,7 @@ async def gen_thumb(videoid):
             font_title = ImageFont.load_default()
             font_meta = ImageFont.load_default()
 
-        # Border around thumbnail
+        # Border
         draw.rounded_rectangle(
             (x_offset - 5, y_offset - 5, x_offset + img_w + 5, y_offset + img_h + 5),
             radius=radius + 5,
@@ -95,7 +93,7 @@ async def gen_thumb(videoid):
 
         # App name
         draw.text(
-            (x_offset + 18, y_offset + 18),
+            (x_offset + 20, y_offset + 20),
             unidecode(app.name),
             font=font_meta,
             fill="white"
@@ -103,7 +101,7 @@ async def gen_thumb(videoid):
 
         # Title
         draw.text(
-            (x_offset, y_offset + img_h + 30),
+            (x_offset, y_offset + img_h + 35),
             clear(title),
             font=font_title,
             fill="white"
@@ -112,7 +110,7 @@ async def gen_thumb(videoid):
         # Channel + Views
         meta_text = f"{channel} | {views}"
         draw.text(
-            (x_offset, y_offset + img_h + 80),
+            (x_offset, y_offset + img_h + 85),
             meta_text,
             font=font_meta,
             fill="white"
@@ -129,7 +127,7 @@ async def gen_thumb(videoid):
         draw.text((40, line_y + 10), "00:00", font=font_meta, fill="white")
         draw.text((1170, line_y + 10), duration, font=font_meta, fill="white")
 
-        # Cleanup temp file
+        # Cleanup
         try:
             os.remove(f"cache/thumb{videoid}.png")
         except:
