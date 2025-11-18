@@ -7,7 +7,12 @@ from unidecode import unidecode
 from youtubesearchpython.__future__ import VideosSearch
 
 from EsproMusic import app
-from config import YOUTUBE_IMG_URL
+# Make sure to replace 'config' import if not using it
+from config import YOUTUBE_IMG_URL 
+
+# Define the path to the image you want to overlay
+# UPDATED PATH based on your request:
+OVERLAY_IMAGE_PATH = "EsproMusic/assets/Espro.png" 
 
 
 async def gen_thumb(videoid):
@@ -16,7 +21,7 @@ async def gen_thumb(videoid):
         if os.path.isfile(cache_path):
             return cache_path
 
-        url = f"https://www.youtube.com/watch?v={videoid}"
+        url = f"https://www.youtube.com/watch?q={videoid}"
         results = VideosSearch(url, limit=1)
         data = (await results.next())["result"][0]
 
@@ -83,6 +88,31 @@ async def gen_thumb(videoid):
             (knob_x - knob_r, line_y - knob_r, knob_x + knob_r, line_y + knob_r),
             fill="white"
         )
+        
+        # ----------------------------------------
+        # --- NEW CODE: PASTE THE OVERLAY IMAGE ---
+        # ----------------------------------------
+        try:
+            overlay_img = Image.open(OVERLAY_IMAGE_PATH).convert("RGBA")
+            
+            # Since the image you provided covers the full 1280x720 area of your thumbnail
+            # based on its appearance, we'll resize it to fit the whole background (bg).
+            overlay_img = overlay_img.resize((1280, 720))
+
+            # Coordinates to paste the top-left corner of the overlay (0, 0 for full coverage)
+            x_overlay = 0
+            y_overlay = 0 
+
+            # Paste the overlay onto the background using its alpha channel as a mask
+            bg.paste(overlay_img, (x_overlay, y_overlay), overlay_img)
+
+        except FileNotFoundError:
+            print(f"Overlay image not found at: {OVERLAY_IMAGE_PATH}. Please check the path and file name. Skipping overlay.")
+        except Exception as e:
+            print(f"Error applying overlay image: {e}")
+        # ----------------------------------------
+        # --- END NEW CODE ---
+        # ----------------------------------------
 
         # Clean temp file
         try:
