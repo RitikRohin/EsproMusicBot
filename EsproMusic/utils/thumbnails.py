@@ -31,7 +31,7 @@ def clear(text):
     return title.strip()
 
 
-async def get_thumb(videoid):
+async def gen_thumb(videoid):
     """
     Generates a custom thumbnail by fetching YouTube data, processing the image, 
     and drawing custom overlays.
