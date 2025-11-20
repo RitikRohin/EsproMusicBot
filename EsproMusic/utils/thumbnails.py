@@ -1,7 +1,6 @@
 import os
 import re
-import os
-import re
+
 import aiofiles
 import aiohttp
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
@@ -11,110 +10,139 @@ from youtubesearchpython.__future__ import VideosSearch
 from EsproMusic import app
 from config import YOUTUBE_IMG_URL
 
-OVERLAY_IMAGE_PATH = "EsproMusic/assets/Espro.png"
+
+def changeImageSize(maxWidth, maxHeight, image):
+    """Resizes an image while maintaining aspect ratio."""
+    widthRatio = maxWidth / image.size[0]
+    heightRatio = maxHeight / image.size[1]
+    newWidth = int(widthRatio * image.size[0])
+    newHeight = int(heightRatio * image.size[1])
+    newImage = image.resize((newWidth, newHeight))
+    return newImage
 
 
-async def download_image(url, filename):
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Referer": "https://www.youtube.com/"
-    }
+def clear(text):
+    """Truncates text to fit within approximately 60 characters for display as a title."""
+    list = text.split(" ")
+    title = ""
+    for i in list:
+        if len(title) + len(i) < 60:
+            title += " " + i
+    return title.strip()
 
+
+async def get_thumb(videoid):
+    """
+    Generates a custom thumbnail by fetching YouTube data, processing the image, 
+    and drawing custom overlays.
+    """
+    if os.path.isfile(f"cache/{videoid}.png"):
+        return f"cache/{videoid}.png"
+
+    url = f"https://www.youtube.com/watch?v={videoid}"
+    
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as resp:
-                if resp.status != 200:
-                    return False
-
-                async with aiofiles.open(filename, "wb") as f:
-                    await f.write(await resp.read())
-        return True
-    except:
-        return False
-
-
-async def gen_thumb(videoid):
-    try:
-        cache_path = f"cache/{videoid}.png"
-        if os.path.isfile(cache_path):
-            return cache_path
-
-        os.makedirs("cache", exist_ok=True)
-
-        # --- Get YouTube thumbnail data ---
-        url = f"https://www.youtube.com/watch?v={videoid}"
         results = VideosSearch(url, limit=1)
-        data = (await results.next())["result"][0]
-
-        thumbnail = data["thumbnails"][-1]["url"]   # highest size thumbnail
-
-        # --- Download main thumbnail ---
-        main_thumb = f"cache/{videoid}_main"
-        if not await download_image(thumbnail, main_thumb):
-            # Fallback #1: High quality direct URL
-            fallback_url = f"https://img.youtube.com/vi/{videoid}/maxresdefault.jpg"
-            if not await download_image(fallback_url, main_thumb):
-                return YOUTUBE_IMG_URL
-
-        # --- Pillow load fix for WEBP / JPG / PNG ---
+        video_data = (await results.next())["result"][0]
+        
+        # Extract and clean data
         try:
-            youtube = Image.open(main_thumb).convert("RGBA")
+            title = video_data["title"]
+            title = re.sub("\W+", " ", title)
+            title = title.title()
         except:
-            youtube = Image.open(main_thumb).convert("RGB").convert("RGBA")
+            title = "Unsupported Title"
+        
+        duration = video_data.get("duration", "Unknown Mins")
+        thumbnail = video_data["thumbnails"][0]["url"].split("?")[0]
+        views = video_data.get("viewCount", {}).get("short", "Unknown Views")
+        channel = video_data.get("channel", {}).get("name", "Unknown Channel")
 
-        # --- Resize to full resolution ---
-        base = youtube.resize((1280, 720)).convert("RGBA")
+        # Download the original thumbnail
+        async with aiohttp.ClientSession() as session:
+            async with session.get(thumbnail) as resp:
+                if resp.status == 200:
+                    f = await aiofiles.open(f"cache/thumb{videoid}.png", mode="wb")
+                    await f.write(await resp.read())
+                    await f.close()
 
-        # --- Background blur ---
-        bg = base.filter(ImageFilter.GaussianBlur(18))
-        bg = ImageEnhance.Brightness(bg).enhance(0.45)
-
-        # --- Overlay image on top (must be first layer) ---
+        # Image Processing and Background creation
+        youtube = Image.open(f"cache/thumb{videoid}.png")
+        image1 = changeImageSize(1280, 720, youtube)
+        image2 = image1.convert("RGBA")
+        background = image2.filter(filter=ImageFilter.BoxBlur(10)) # Heavy blur
+        enhancer = ImageEnhance.Brightness(background)
+        background = enhancer.enhance(0.5) # Darkens the background
+        
+        draw = ImageDraw.Draw(background)
+        
+        # Load Fonts (Requires font files in assets directory)
+        arial = ImageFont.truetype("EsproMusic/assets/font2.ttf", 30)
+        font = ImageFont.truetype("EsproMusic/assets/font.ttf", 30)
+        
+        # Draw Text and Graphics Overlays
+        
+        # App Name (Top Right)
+        draw.text((1110, 8), unidecode(app.name), fill="white", font=arial)
+        
+        # Channel & Views (Bottom Left)
+        draw.text(
+            (55, 560),
+            f"{channel} | {views[:23]}",
+            (255, 255, 255),
+            font=arial,
+        )
+        
+        # Title (Top Left)
+        draw.text(
+            (57, 60),
+            clear(title),
+            (255, 255, 255),
+            font=font,
+        )
+        
+        # Progress Bar Line
+        draw.line(
+            [(55, 660), (1220, 660)],
+            fill="white",
+            width=5,
+            joint="curve",
+        )
+        
+        # Progress Bar Dot (Fixed position for '00:00' start)
+        draw.ellipse(
+            [(918, 648), (942, 672)],
+            outline="white",
+            fill="white",
+            width=15,
+        )
+        
+        # Current Time (Fixed to 00:00)
+        draw.text(
+            (36, 685),
+            "00:00",
+            (255, 255, 255),
+            font=arial,
+        )
+        
+        # Duration (Bottom Right)
+        draw.text(
+            (1185, 685),
+            f"{duration[:23]}",
+            (255, 255, 255),
+            font=arial,
+        )
+        
+        # Cleanup and Save
         try:
-            overlay_img = Image.open(OVERLAY_IMAGE_PATH).convert("RGBA")
-            overlay_img = overlay_img.resize((1280, 720))
-            bg.paste(overlay_img, (0, 0), overlay_img)
+            os.remove(f"cache/thumb{videoid}.png")
         except:
             pass
-
-        # --- Main centered thumbnail ---
-        img_w, img_h = 900, 450
-        x_offset = (1280 - img_w) // 2
-        y_offset = (720 - img_h) // 2
-
-        small = youtube.resize((img_w, img_h))
-
-        # Rounded corners
-        mask = Image.new("L", (img_w, img_h), 0)
-        draw_mask = ImageDraw.Draw(mask)
-        draw_mask.rounded_rectangle((0, 0, img_w, img_h), radius=35, fill=255)
-
-        bg.paste(small, (x_offset, y_offset), mask)
-
-        draw = ImageDraw.Draw(bg)
-
-        # Thumbnail border
-        draw.rounded_rectangle(
-            (x_offset - 5, y_offset - 5, x_offset + img_w + 5, y_offset + img_h + 5),
-            radius=41, outline="white", width=5
-        )
-
-        # Progress bar
-        line_y = 700
-        draw.line((55, line_y, 1225, line_y), fill="white", width=6)
-
-        # Knob
-        knob_x = 930
-        knob_r = 13
-        draw.ellipse(
-            (knob_x - knob_r, line_y - knob_r, knob_x + knob_r, line_y + knob_r),
-            fill="white"
-        )
-
-        bg.save(cache_path)
-
-        return cache_path
-
+        
+        background.save(f"cache/{videoid}.png")
+        return f"cache/{videoid}.png"
+        
     except Exception as e:
-        print("Thumbnail Error:", e)
+        print(e)
+        # Return fallback image on failure
         return YOUTUBE_IMG_URL
