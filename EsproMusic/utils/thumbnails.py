@@ -20,13 +20,11 @@ OVERLAYS = [
 
 async def gen_thumb(videoid):
     try:
-        cache_path = f"cache/{videoid}.png"
+        # Randomizer so every time fresh file generate
+        random_key = random.randint(1000, 9999)
+        cache_path = f"cache/{videoid}_{random_key}.png"
 
-        # Force refresh for new overlay every time
-        if os.path.isfile(cache_path):
-            os.remove(cache_path)
-
-        # Search YouTube properly
+        # YouTube search info
         results = VideosSearch(videoid, limit=1)
         data = (await results.next())["result"][0]
         thumbnail = data["thumbnails"][-1]["url"].split("?")[0]
@@ -34,23 +32,24 @@ async def gen_thumb(videoid):
         os.makedirs("cache", exist_ok=True)
         headers = {"User-Agent": "Mozilla/5.0"}
 
+        # Download YouTube Thumbnail
         async with aiohttp.ClientSession() as session:
             async with session.get(thumbnail, headers=headers) as resp:
                 if resp.status != 200:
                     return YOUTUBE_IMG_URL
 
-                async with aiofiles.open(f"cache/thumb{videoid}.png", "wb") as f:
+                async with aiofiles.open("cache/raw.png", "wb") as f:
                     await f.write(await resp.read())
 
-        # Load base image
-        youtube = Image.open(f"cache/thumb{videoid}.png")
+        # Base image
+        youtube = Image.open("cache/raw.png")
         base = youtube.resize((1280, 720)).convert("RGBA")
 
-        # Blurred BG Layer
+        # Background cinematic blur
         bg = base.filter(ImageFilter.GaussianBlur(18))
         bg = ImageEnhance.Brightness(bg).enhance(0.45)
 
-        # Main thumbnail area
+        # Center main clip
         img_w, img_h = 900, 450
         x_offset = (1280 - img_w) // 2
         y_offset = (720 - img_h) // 2
@@ -64,19 +63,19 @@ async def gen_thumb(videoid):
 
         draw = ImageDraw.Draw(bg)
 
-        # Border
+        # White Border around video
         draw.rounded_rectangle(
-            (x_offset - 5, y_offset - 5, x_offset + img_w + 5, y_offset + img_h + 5),
+            (x_offset - 5, y_offset - 5, x_offset + img_w + 5 + 2, y_offset + img_h + 5 + 2),
             radius=41,
             outline="white",
-            width=5
+            width=6
         )
 
         # Progress Bar
         line_y = 700
         draw.line((55, line_y, 1225, line_y), fill="white", width=6)
 
-        # Random Knob position
+        # Knob on bar
         knob_x = random.randint(75, 1200)
         knob_r = 13
         draw.ellipse(
@@ -84,24 +83,26 @@ async def gen_thumb(videoid):
             fill="white"
         )
 
-        # ---- OVERLAY ON TOP ----
+        # ---- OVERLAY AS FINAL LAYER ----
         try:
             overlay_path = random.choice(OVERLAYS)
             overlay_img = Image.open(overlay_path).convert("RGBA")
+            overlay_img.putalpha(255)  # Full opacity
             overlay_img = overlay_img.resize((1280, 720))
             bg.paste(overlay_img, (0, 0), overlay_img)
-            print(f"Overlay Applied (TOP): {overlay_path}")
+            print(f"[Overlay Applied]: {overlay_path}")
         except Exception as e:
             print("Overlay Error:", e)
 
-        # Cleanup
+        # Save final image
+        bg.save(cache_path)
+
+        # Clean raw download
         try:
-            os.remove(f"cache/thumb{videoid}.png")
+            os.remove("cache/raw.png")
         except:
             pass
 
-        # Final Save
-        bg.save(cache_path)
         return cache_path
 
     except Exception as e:
