@@ -7,7 +7,7 @@ from youtubesearchpython.__future__ import VideosSearch
 from EsproMusic import app
 from config import YOUTUBE_IMG_URL
 
-OVERLAY_IMAGE_PATH = "EsproMusic/assets/Espro.png"
+OVERLAY_IMAGE_PATH = "EsproMusic/assets/Espro.png,EsproMusic/assets/Espro1.png,EsproMusic/assets/Espro2.png,EsproMusic/assets/Espro3.png,EsproMusic/assets/Espro4.png"
 
 
 async def gen_thumb(videoid):
