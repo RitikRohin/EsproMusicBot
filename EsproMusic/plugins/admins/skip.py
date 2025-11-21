@@ -125,6 +125,7 @@ async def skip(cli, message: Message, _, chat_id):
                 user,
             ),
             reply_markup=InlineKeyboardMarkup(button),
+            has_spoiler=True
         )
         db[chat_id][0]["mystic"] = run
         db[chat_id][0]["markup"] = "tg"
@@ -158,6 +159,7 @@ async def skip(cli, message: Message, _, chat_id):
                 user,
             ),
             reply_markup=InlineKeyboardMarkup(button),
+            has_spoiler=True
         )
         db[chat_id][0]["mystic"] = run
         db[chat_id][0]["markup"] = "stream"
@@ -172,6 +174,7 @@ async def skip(cli, message: Message, _, chat_id):
             photo=config.STREAM_IMG_URL,
             caption=_["stream_2"].format(user),
             reply_markup=InlineKeyboardMarkup(button),
+            has_spoiler=True
         )
         db[chat_id][0]["mystic"] = run
         db[chat_id][0]["markup"] = "tg"
@@ -227,6 +230,8 @@ async def skip(cli, message: Message, _, chat_id):
                     user,
                 ),
                 reply_markup=InlineKeyboardMarkup(button),
+                has_spoiler=True
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "stream"
+
