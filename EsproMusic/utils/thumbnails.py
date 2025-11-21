@@ -1,30 +1,32 @@
 import os
-import re
 import aiofiles
 import aiohttp
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
-from unidecode import unidecode
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
 from youtubesearchpython.__future__ import VideosSearch
 
 from EsproMusic import app
-from config import YOUTUBE_IMG_URL 
+from config import YOUTUBE_IMG_URL
 
-OVERLAY_IMAGE_PATH = "EsproMusic/assets/Espro.png" 
+OVERLAY_IMAGE_PATH = "EsproMusic/assets/Espro.png"
 
 
 async def gen_thumb(videoid):
     try:
         cache_path = f"cache/{videoid}.png"
+
+        # If exists, return cached
         if os.path.isfile(cache_path):
             return cache_path
 
-        url = f"https://www.youtube.com/watch?q={videoid}"
-        results = VideosSearch(url, limit=1)
+        # ------------- FIX: Correct YouTube search -------------
+        results = VideosSearch(videoid, limit=1)
         data = (await results.next())["result"][0]
 
         thumbnail = data["thumbnails"][0]["url"].split("?")[0]
 
+        # Create cache folder
         os.makedirs("cache", exist_ok=True)
+
         headers = {"User-Agent": "Mozilla/5.0"}
 
         async with aiohttp.ClientSession() as session:
@@ -35,56 +37,51 @@ async def gen_thumb(videoid):
                 async with aiofiles.open(f"cache/thumb{videoid}.png", "wb") as f:
                     await f.write(await resp.read())
 
+        # Load base image
         youtube = Image.open(f"cache/thumb{videoid}.png")
         base = youtube.resize((1280, 720)).convert("RGBA")
 
-        # Background blur
+        # ----Background blur----
         bg = base.filter(ImageFilter.GaussianBlur(18))
         bg = ImageEnhance.Brightness(bg).enhance(0.45)
 
-        # ----------------------------------------------------
-        # 1️⃣  PASTE OVERLAY FIRST (so everything draws on top)
-        # ----------------------------------------------------
+        # ----OVERLAY----
         try:
             overlay_img = Image.open(OVERLAY_IMAGE_PATH).convert("RGBA")
             overlay_img = overlay_img.resize((1280, 720))
             bg.paste(overlay_img, (0, 0), overlay_img)
-
         except Exception as e:
-            print("Overlay error:", e)
+            print("Overlay Error:", e)
 
-        # ----------------------------------------------------
-        # 2️⃣  Now draw video thumbnail over overlay
-        # ----------------------------------------------------
+        # ----MAIN THUMBNAIL----
         img_w, img_h = 900, 450
         x_offset = (1280 - img_w) // 2
         y_offset = (720 - img_h) // 2
 
         small = youtube.resize((img_w, img_h))
 
-        radius = 35
+        # Rounded rectangle mask
         mask = Image.new("L", (img_w, img_h), 0)
         draw_mask = ImageDraw.Draw(mask)
-        draw_mask.rounded_rectangle((0, 0, img_w, img_h), radius=radius, fill=255)
+        draw_mask.rounded_rectangle((0, 0, img_w, img_h), radius=35, fill=255)
 
         bg.paste(small, (x_offset, y_offset), mask)
 
         draw = ImageDraw.Draw(bg)
 
-        # Border
+        # ----Border----
         draw.rounded_rectangle(
             (x_offset - 5, y_offset - 5, x_offset + img_w + 5, y_offset + img_h + 5),
-            radius=radius + 6,
+            radius=41,
             outline="white",
             width=5
         )
 
-        # ----------------------------------------------------
-        # 3️⃣  PROGRESS BAR + KNOB
-        # ----------------------------------------------------
+        # ----PROGRESS BAR----
         line_y = 700
         draw.line((55, line_y, 1225, line_y), fill="white", width=6)
 
+        # ----KNOB----
         knob_x = 930
         knob_r = 13
         draw.ellipse(
@@ -92,12 +89,13 @@ async def gen_thumb(videoid):
             fill="white"
         )
 
-        # Clean temp
+        # Remove temp thumbnail
         try:
             os.remove(f"cache/thumb{videoid}.png")
         except:
             pass
 
+        # Save final image
         bg.save(cache_path)
         return cache_path
 
